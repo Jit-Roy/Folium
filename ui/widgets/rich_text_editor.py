@@ -1,6 +1,9 @@
 from PySide6.QtWidgets import QTextEdit, QWidget
 from PySide6.QtGui import QTextCursor, QTextFormat, QDesktopServices, QPainter, QColor, QPen
-from PySide6.QtCore import Qt, QUrl, QRect, QPoint, Signal
+from PySide6.QtCore import Qt, QUrl, QRect, QPoint, Signal, QTimer
+import os
+import logging
+logging.basicConfig(filename='debug.log', level=logging.DEBUG, format='%(asctime)s - %(message)s')
 
 class ImageResizerOverlay(QWidget):
     def __init__(self, editor, cursor):
@@ -13,10 +16,12 @@ class ImageResizerOverlay(QWidget):
         self.setMouseTracking(True)
         
         self.handle_size = 8
+        self.padding = 4
         self.dragging = False
         self.drag_handle = None
-        self.start_pos = None
+        self.start_pos = QPoint()
         self.start_geometry = None
+        self.setMouseTracking(True)
         
         self.update_geometry()
         
@@ -42,36 +47,92 @@ class ImageResizerOverlay(QWidget):
             
         x = rect.x()
         y = rect.y()
-        self.setGeometry(x, y, int(width), int(height))
+        
+        logging.debug(f"[update_geometry] cursor pos: {self.target_cursor.position()}")
+        logging.debug(f"[update_geometry] cursorRect: {rect.x()}, {rect.y()}, {rect.width()}, {rect.height()}")
+        logging.debug(f"[update_geometry] img_fmt w/h: {width}x{height}")
+        
+        # Prevent ghost bounds from oversized images
+        max_w = self.editor.viewport().width() - x - 5
+        if width > max_w:
+            logging.debug(f"[update_geometry] CLAMPING width from {width} to {max_w}")
+            height = int(height * (max_w / width))
+            width = max_w
+            
+            image_format.setWidth(width)
+            image_format.setHeight(height)
+            
+            # Use a COPY of the cursor to prevent mutating the original position!
+            c = QTextCursor(self.target_cursor)
+            pos = c.position()
+            c.setPosition(pos)
+            c.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
+            c.setCharFormat(image_format)
+            
+        p = self.padding
+        logging.debug(f"[update_geometry] final overlay rect: x={x-p}, y={y-p}, w={width+2*p}, h={height+2*p}")
+        self.setGeometry(x - p, y - p, int(width) + 2*p, int(height) + 2*p)
         self.show()
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setPen(QPen(QColor("#88C0D0"), 2, Qt.SolidLine))
+        painter.setRenderHint(QPainter.Antialiasing, False)
         
-        # Draw border
-        rect = self.rect().adjusted(1, 1, -2, -2)
-        painter.drawRect(rect)
+        p = self.padding
+        w = self.rect().width() - 2*p
+        h = self.rect().height() - 2*p
         
-        # Draw handles
-        painter.setBrush(QColor("#88C0D0"))
+        # The rect of the image itself
+        img_rect = QRect(p, p, w, h)
+        
+        # Draw the blue border exactly around the image
+        painter.setPen(QPen(QColor("#B48EAD"), 2, Qt.SolidLine))
+        painter.setBrush(Qt.NoBrush)
+        painter.drawRect(img_rect)
+        
+        # Draw the handles
         h_size = self.handle_size
+        half = h_size // 2
         
-        # Top-Left
-        painter.drawRect(0, 0, h_size, h_size)
-        # Top-Right
-        painter.drawRect(self.rect().width() - h_size, 0, h_size, h_size)
-        # Bottom-Left
-        painter.drawRect(0, self.rect().height() - h_size, h_size, h_size)
-        # Bottom-Right
-        painter.drawRect(self.rect().width() - h_size, self.rect().height() - h_size, h_size, h_size)
+        # Handle style: violet fill, no border
+        painter.setBrush(QColor("#B48EAD"))
+        painter.setPen(Qt.NoPen)
+        
+        def draw_handle(x, y):
+            painter.drawRect(x - half, y - half, h_size, h_size)
+            
+        # Corners
+        draw_handle(p, p) # Top-Left
+        draw_handle(p + w, p) # Top-Right
+        draw_handle(p, p + h) # Bottom-Left
+        draw_handle(p + w, p + h) # Bottom-Right
+        
+        # Edges
+        mid_w = p + w // 2
+        mid_h = p + h // 2
+        draw_handle(mid_w, p) # Top
+        draw_handle(mid_w, p + h) # Bottom
+        draw_handle(p, mid_h) # Left
+        draw_handle(p + w, mid_h) # Right
 
     def _get_handle_at(self, pos):
-        s = self.handle_size
-        w, h = self.width(), self.height()
+        s = self.handle_size + 4 # slightly larger hitbox
+        half = s // 2
+        p = self.padding
+        w = self.width() - 2*p
+        h = self.height() - 2*p
+        
+        mid_w = p + w // 2
+        mid_h = p + h // 2
+        
+        def r(x, y):
+            return QRect(x - half, y - half, s, s)
+            
         handles = {
-            "top_left": QRect(0, 0, s, s), "top_right": QRect(w-s, 0, s, s),
-            "bottom_left": QRect(0, h-s, s, s), "bottom_right": QRect(w-s, h-s, s, s)
+            "top_left": r(p, p), "top_right": r(p+w, p),
+            "bottom_left": r(p, p+h), "bottom_right": r(p+w, p+h),
+            "top": r(mid_w, p), "bottom": r(mid_w, p+h),
+            "left": r(p, mid_h), "right": r(p+w, mid_h)
         }
         for name, rect in handles.items():
             if rect.contains(pos):
@@ -86,22 +147,28 @@ class ImageResizerOverlay(QWidget):
                 self.drag_handle = handle
                 self.start_pos = event.globalPosition().toPoint()
                 self.start_geometry = self.geometry()
+                self.grabMouse()
             else:
-                # Pass click to editor if not clicking a handle
-                event.ignore()
                 self.hide()
+                self.deleteLater()
+                event.ignore()
         else:
             event.ignore()
 
     def mouseMoveEvent(self, event):
-        handle = self._get_handle_at(event.position().toPoint())
-        
-        if handle in ["top_left", "bottom_right"]:
-            self.setCursor(Qt.SizeFDiagCursor)
-        elif handle in ["top_right", "bottom_left"]:
-            self.setCursor(Qt.SizeBDiagCursor)
-        else:
-            self.setCursor(Qt.ArrowCursor)
+        if not self.dragging:
+            handle = self._get_handle_at(event.position().toPoint())
+            if handle in ("top_left", "bottom_right"):
+                self.setCursor(Qt.SizeFDiagCursor)
+            elif handle in ("top_right", "bottom_left"):
+                self.setCursor(Qt.SizeBDiagCursor)
+            elif handle in ("left", "right"):
+                self.setCursor(Qt.SizeHorCursor)
+            elif handle in ("top", "bottom"):
+                self.setCursor(Qt.SizeVerCursor)
+            else:
+                self.setCursor(Qt.ArrowCursor)
+            return
             
         if self.dragging and self.start_pos:
             delta = event.globalPosition().toPoint() - self.start_pos
@@ -121,25 +188,38 @@ class ImageResizerOverlay(QWidget):
             elif "top" in self.drag_handle:
                 new_rect.setTop(min(self.start_geometry.bottom() - 50, self.start_geometry.top() + delta.y()))
                 
+            old_rect = self.geometry()
+            logging.debug(f"[mouseMoveEvent] dragging {self.drag_handle}, new_rect: {new_rect}")
             self.setGeometry(new_rect)
+            if self.parent():
+                self.parent().repaint(old_rect)
             
     def mouseReleaseEvent(self, event):
         if self.dragging:
-            # Apply final size to Document Image
             new_rect = self.geometry()
+            logging.debug(f"[mouseReleaseEvent] final applied size: {new_rect.width()}x{new_rect.height()}")
             char_format = self.target_cursor.charFormat()
             image_format = char_format.toImageFormat()
-            image_format.setWidth(new_rect.width())
-            image_format.setHeight(new_rect.height())
             
-            pos = self.target_cursor.position()
-            self.target_cursor.setPosition(pos)
-            self.target_cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
-            self.target_cursor.setCharFormat(image_format)
+            p = self.padding
+            image_format.setWidth(new_rect.width() - 2*p)
+            image_format.setHeight(new_rect.height() - 2*p)
+            
+            # Use a COPY of the cursor to prevent mutating the original position!
+            c = QTextCursor(self.target_cursor)
+            pos = c.position()
+            c.setPosition(pos)
+            c.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
+            c.setCharFormat(image_format)
             
         self.dragging = False
         self.drag_handle = None
-        self.update_geometry() # snap perfectly to updated image
+        
+        if hasattr(self, 'releaseMouse'):
+            self.releaseMouse()
+            
+        # Give document layout engine time to finish calculating before snapping
+        QTimer.singleShot(10, self.update_geometry)
 
 from ui.widgets.floating_widgets import FloatingInput
 
@@ -152,21 +232,11 @@ class RichTextEditor(QTextEdit):
     def scrollContentsBy(self, dx, dy):
         super().scrollContentsBy(dx, dy)
         if self.active_overlay:
-            self.active_overlay.hide()
-            self.active_overlay = None
+            if not getattr(self.active_overlay, 'dragging', False):
+                self.active_overlay.update_geometry()
             
-    def mousePressEvent(self, event):
-        # Hide overlay on click anywhere
-        if self.active_overlay:
-            self.active_overlay.hide()
-            self.active_overlay = None
-            
-        super().mousePressEvent(event)
-        
-        # Check for single click on Image
-        pos = event.position().toPoint()
+    def _get_image_cursor_at(self, pos):
         cursor = self.cursorForPosition(pos)
-        
         candidates = []
         c_right = QTextCursor(cursor)
         c_right.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
@@ -187,14 +257,39 @@ class RichTextEditor(QTextEdit):
             w = img_fmt.width() if img_fmt.width() > 0 else 300
             h = img_fmt.height() if img_fmt.height() > 0 else 300
             
-            img_rect = QRect(rect.x(), rect.y(), int(w), int(h))
+            # Constrain click detection to viewport to prevent ghost clicks
+            max_w = self.viewport().width() - rect.x() - 5
+            if w > max_w:
+                w = max_w
+                
+            p = 4
+            img_rect = QRect(rect.x() - p, rect.y() - p, int(w) + 2*p, int(h) + 2*p)
             if img_rect.contains(pos):
-                if img_fmt.width() <= 0:
-                    img_fmt.setWidth(300)
-                    img_fmt.setHeight(300)
-                    c.setCharFormat(img_fmt)
-                self.active_overlay = ImageResizerOverlay(self, c)
-                return
+                return c
+        return None
+
+    def mousePressEvent(self, event):
+        # Hide overlay on click anywhere
+        if self.active_overlay:
+            self.active_overlay.hide()
+            self.active_overlay.deleteLater()
+            self.active_overlay = None
+            
+        super().mousePressEvent(event)
+        
+        # Check for single click on Image
+        pos = event.position().toPoint()
+        img_cursor = self._get_image_cursor_at(pos)
+        
+        if img_cursor:
+            logging.debug(f"[mousePressEvent] HIT! Spawning overlay for image")
+            img_fmt = img_cursor.charFormat().toImageFormat()
+            if img_fmt.width() <= 0:
+                img_fmt.setWidth(300)
+                img_fmt.setHeight(300)
+                img_cursor.setCharFormat(img_fmt)
+            self.active_overlay = ImageResizerOverlay(self, img_cursor)
+            return
             
     def mouseDoubleClickEvent(self, event):
         pass # Remove old double click logic
@@ -243,13 +338,20 @@ class RichTextEditor(QTextEdit):
     def mouseMoveEvent(self, event):
         super().mouseMoveEvent(event)
         
+        pos = event.position().toPoint()
+        
+        # Change cursor on hover for images
+        if self._get_image_cursor_at(pos):
+            self.viewport().setCursor(Qt.SizeAllCursor)
+            return
+            
         # Change cursor on hover for links and checkboxes
-        href = self.anchorAt(event.position().toPoint())
+        href = self.anchorAt(pos)
         if href:
             self.viewport().setCursor(Qt.PointingHandCursor)
             return
             
-        cursor = self.cursorForPosition(event.position().toPoint())
+        cursor = self.cursorForPosition(pos)
         
         # Check char to the right
         cursor_right = QTextCursor(cursor)

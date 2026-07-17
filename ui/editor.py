@@ -259,7 +259,25 @@ class NoteEditor(QWidget):
             file_name, _ = QFileDialog.getOpenFileName(self, "Insert Image", "", "Images (*.png *.jpg *.jpeg *.gif *.svg)")
             if file_name:
                 url = f"file:///{file_name.replace(chr(92), '/')}"
-                self.editor.insertHtml(f'<img src="{url}" style="max-width: 100%;"><br>')
+                
+                from PySide6.QtGui import QImage
+                img = QImage(file_name)
+                w = img.width()
+                h = img.height()
+                
+                max_w = self.editor.viewport().width() - 40
+                if w > max_w:
+                    h = int(h * (max_w / w))
+                    w = max_w
+                
+                img_format = QTextImageFormat()
+                img_format.setName(url)
+                img_format.setWidth(w)
+                img_format.setHeight(h)
+                
+                cursor.insertImage(img_format)
+                cursor.insertText("\n")
+                self.editor.setTextCursor(cursor)
                 
         elif format_type == "table":
             rect = self.format_btns["table"].geometry()
@@ -368,9 +386,11 @@ class NoteEditor(QWidget):
         
         self.editor.blockSignals(True)
         if content and ("<html" in content.lower() or "<body" in content.lower()):
+            # Strip legacy max-width to prevent ghost sizing bugs
+            content = content.replace('style="max-width: 100%;"', '')
             self.editor.setHtml(content)
         else:
-            self.editor.setPlainText(content)
+            self.editor.setPlainText(content if content else "")
             
         self.editor.setEnabled(True)
         self.editor.blockSignals(False)
