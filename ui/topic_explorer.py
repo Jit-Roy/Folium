@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTreeView, QLineEdit, 
-    QLabel, QFrame, QHBoxLayout, QPushButton
+    QLabel, QFrame, QHBoxLayout, QPushButton, QHeaderView, QMessageBox
 )
 from PySide6.QtCore import Qt, Signal, QSize
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon
@@ -114,23 +114,23 @@ class TopicExplorer(QWidget):
 
         # Topic Tree
         self.topic_model = QStandardItemModel()
+        self.topic_model.setColumnCount(2)
+        
         self.topic_view = QTreeView()
         self.topic_view.setModel(self.topic_model)
         self.topic_view.setHeaderHidden(True)
+        self.topic_view.setIndentation(12) # Reduced indentation to save horizontal space
+        self.topic_view.header().setStretchLastSection(False)
+        self.topic_view.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.topic_view.header().setSectionResizeMode(1, QHeaderView.Fixed)
+        self.topic_view.setColumnWidth(1, 50)
+        self.topic_view.setSelectionBehavior(QTreeView.SelectRows)
         self.topic_view.setStyleSheet("""
-            QTreeView { background: transparent; border: none; outline: none; }
-            QTreeView::item { padding: 4px; color: #CCCCCC; }
-            QTreeView::item:hover { background: #242424; border-radius: 4px; }
-            QTreeView::item:selected { background: #2D2036; color: #B48EAD; border-radius: 4px; }
+            QTreeView { background: transparent; border: none; outline: none; show-decoration-selected: 1; }
+            QTreeView::item { padding: 4px; color: #CCCCCC; margin: 0px; border: none; border-radius: 0px; }
+            QTreeView::item:hover { background: #242424; }
+            QTreeView::item:selected { background: #2D2036; color: #B48EAD; }
             QTreeView QLineEdit { background: #1A1A1A; color: #FFFFFF; border: 1px solid #B48EAD; border-radius: 4px; padding: 2px; }
-            QTreeView::branch:has-children:!has-siblings:closed,
-            QTreeView::branch:closed:has-children:has-siblings {
-                image: url(assets/icons/folder.svg);
-            }
-            QTreeView::branch:open:has-children:!has-siblings,
-            QTreeView::branch:open:has-children:has-siblings  {
-                image: url(assets/icons/folder.svg);
-            }
         """)
         self.topic_view.selectionModel().selectionChanged.connect(self.on_selection_changed)
         self.topic_model.itemChanged.connect(self.on_item_changed)
@@ -169,6 +169,7 @@ class TopicExplorer(QWidget):
 
     def add_topic_prompt(self):
         # Show the inline input and focus it
+        self.pending_parent_id = None
         self.new_topic_input.setText("")
         self.new_topic_input.show()
         self.new_topic_input.setFocus()
@@ -181,11 +182,8 @@ class TopicExplorer(QWidget):
             session = get_session()
             new_topic = Topic(name=text)
             
-            # If a topic is selected, make it a child
-            indexes = self.topic_view.selectedIndexes()
-            if indexes:
-                parent_id = self.topic_model.itemFromIndex(indexes[0]).data(Qt.UserRole)
-                parent_topic = session.query(Topic).get(parent_id)
+            if hasattr(self, 'pending_parent_id') and self.pending_parent_id:
+                parent_topic = session.get(Topic, self.pending_parent_id)
                 if parent_topic:
                     new_topic.parents.append(parent_topic)
                     
@@ -197,6 +195,32 @@ class TopicExplorer(QWidget):
             self.select_topic(new_topic_id)
             
         self.new_topic_input.hide()
+        self.pending_parent_id = None
+
+    def add_subtopic(self, parent_id):
+        self.pending_parent_id = parent_id
+        self.new_topic_input.setText("")
+        self.new_topic_input.show()
+        self.new_topic_input.setFocus()
+        
+    def delete_topic(self, topic_id):
+        from core.database import get_session
+        from core.models import Topic
+        session = get_session()
+        topic = session.get(Topic, topic_id)
+        if topic:
+            deleted = set()
+            def delete_recursive(t):
+                if t.id in deleted: return
+                deleted.add(t.id)
+                children = list(t.children)
+                for child in children:
+                    delete_recursive(child)
+                session.delete(t)
+            delete_recursive(topic)
+            session.commit()
+        session.close()
+        self.load_topics_from_db()
 
     def select_topic(self, topic_id):
         match = self.topic_model.match(
@@ -231,6 +255,13 @@ class TopicExplorer(QWidget):
 
     def load_topics_from_db(self):
         self.topic_model.clear()
+        self.topic_model.setColumnCount(2)
+        
+        # Re-apply header settings because clear() destroys column configuration
+        self.topic_view.header().setStretchLastSection(False)
+        self.topic_view.header().setSectionResizeMode(0, QHeaderView.Stretch)
+        self.topic_view.header().setSectionResizeMode(1, QHeaderView.Fixed)
+        self.topic_view.setColumnWidth(1, 55) # Ensure buttons have enough space
         
         from core.database import get_session
         from core.models import Topic
@@ -249,6 +280,7 @@ class TopicExplorer(QWidget):
             
             item = QStandardItem(topic.name)
             item.setData(topic.id, Qt.UserRole)
+            item.setToolTip(topic.name) # Add hover tooltip
             
             # Set icon based on children
             if topic.children:
@@ -256,7 +288,61 @@ class TopicExplorer(QWidget):
             else:
                 item.setIcon(QIcon("assets/icons/file.svg"))
                 
-            parent_item.appendRow(item)
+            btn_item = QStandardItem()
+            parent_item.appendRow([item, btn_item])
+            
+            btn_widget = QWidget()
+            btn_widget.setStyleSheet("background: transparent;")
+            btn_layout = QHBoxLayout(btn_widget)
+            btn_layout.setContentsMargins(0, 0, 0, 0)
+            btn_layout.setSpacing(2)
+            
+            add_btn = QPushButton()
+            add_btn.setIcon(QIcon("assets/icons/plus.svg"))
+            add_btn.setFixedSize(20, 20)
+            add_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            add_btn.clicked.connect(lambda _, t_id=topic.id: self.add_subtopic(t_id))
+            
+            del_btn = QPushButton()
+            del_btn.setIcon(QIcon("assets/icons/trash.svg"))
+            del_btn.setFixedSize(20, 20)
+            del_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            
+            confirm_btn = QPushButton()
+            confirm_btn.setIcon(QIcon("assets/icons/check.svg"))
+            confirm_btn.setFixedSize(20, 20)
+            confirm_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            confirm_btn.hide()
+            
+            cancel_btn = QPushButton()
+            cancel_btn.setIcon(QIcon("assets/icons/x.svg"))
+            cancel_btn.setFixedSize(20, 20)
+            cancel_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            cancel_btn.hide()
+            
+            def show_confirm(a=add_btn, d=del_btn, c=confirm_btn, x=cancel_btn):
+                a.hide()
+                d.hide()
+                c.show()
+                x.show()
+                
+            def hide_confirm(a=add_btn, d=del_btn, c=confirm_btn, x=cancel_btn):
+                c.hide()
+                x.hide()
+                a.show()
+                d.show()
+                
+            del_btn.clicked.connect(lambda _: show_confirm())
+            cancel_btn.clicked.connect(lambda _: hide_confirm())
+            confirm_btn.clicked.connect(lambda _, t_id=topic.id: self.delete_topic(t_id))
+            
+            btn_layout.addStretch()
+            btn_layout.addWidget(add_btn)
+            btn_layout.addWidget(del_btn)
+            btn_layout.addWidget(confirm_btn)
+            btn_layout.addWidget(cancel_btn)
+            
+            self.topic_view.setIndexWidget(btn_item.index(), btn_widget)
             
             for child in topic.children:
                 add_node(item, child)
