@@ -52,11 +52,6 @@ class TopBar(QWidget):
         self.search_box.addAction(QIcon("assets/icons/search.svg"), QLineEdit.LeadingPosition)
         layout.addWidget(self.search_box)
         
-        # Shortcut Hint
-        hint = QLabel("⌘ K")
-        hint.setStyleSheet("color: #666666; font-size: 11px; background: #242424; padding: 2px 6px; border-radius: 4px; border: none;")
-        layout.addWidget(hint)
-        
         layout.addStretch()
 
         # Action Icons

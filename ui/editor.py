@@ -193,8 +193,8 @@ class NoteEditor(QWidget):
             
         elif format_type == "code":
             font = char_format.font()
-            if font.family() != "Consolas":
-                font.setFamily("Consolas")
+            if font.family() != "Courier New":
+                font.setFamily("Courier New")
                 char_format.setFont(font)
                 char_format.setBackground(QColor("#242424"))
                 char_format.setForeground(QColor("#B48EAD"))
@@ -220,13 +220,13 @@ class NoteEditor(QWidget):
             else:
                 if format_type == "h1":
                     header_char_format.setFontPointSize(24)
-                    header_char_format.setFontWeight(QFont.Bold)
+                    header_char_format.setFontWeight(QFont.Normal)
                 elif format_type == "h2":
                     header_char_format.setFontPointSize(20)
-                    header_char_format.setFontWeight(QFont.Bold)
+                    header_char_format.setFontWeight(QFont.Normal)
                 elif format_type == "h3":
                     header_char_format.setFontPointSize(16)
-                    header_char_format.setFontWeight(QFont.Bold)
+                    header_char_format.setFontWeight(QFont.Normal)
                 
             pos = cursor.position()
             cursor.select(QTextCursor.BlockUnderCursor)
@@ -244,7 +244,16 @@ class NoteEditor(QWidget):
             cursor.createList(list_format)
             
         elif format_type == "check-square":
+            cf = cursor.charFormat()
+            font = cf.font()
+            font.setFamily("Segoe UI Symbol")
+            cf.setFont(font)
+            cursor.setCharFormat(cf)
             cursor.insertText("☐ ")
+            # Reset back
+            font.setFamily("Segoe UI")
+            cf.setFont(font)
+            cursor.setCharFormat(cf)
             
         elif format_type == "image":
             file_name, _ = QFileDialog.getOpenFileName(self, "Insert Image", "", "Images (*.png *.jpg *.jpeg *.gif *.svg)")

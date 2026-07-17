@@ -27,24 +27,19 @@ class ImageResizerOverlay(QWidget):
             self.hide()
             return
             
-        # Get visual position in the viewport
-        rect = self.editor.cursorRect(self.target_cursor)
+        # Get visual position in the viewport from the start of the image
+        start_cursor = QTextCursor(self.target_cursor)
+        start_cursor.setPosition(self.target_cursor.selectionStart())
+        rect = self.editor.cursorRect(start_cursor)
         
         image_format = char_format.toImageFormat()
         width = image_format.width()
         height = image_format.height()
         
         if width <= 0 or height <= 0:
-            # Fallback if properties not manually set
-            self.hide()
-            return
+            width = 300
+            height = 300
             
-        # The cursorRect might be just a line, but its topLeft is usually correct
-        # Wait, if we use cursorRect of the image character, width/height is usually available.
-        # QTextEdit cursorRect for an image usually returns the width/height of the block line.
-        # We'll build the overlay rect based on the image size and bottom-left/bottom-right of the rect
-        
-        # Actually, cursorRect for a character gives its bounding rect!
         x = rect.x()
         y = rect.y()
         self.setGeometry(x, y, int(width), int(height))
@@ -52,28 +47,24 @@ class ImageResizerOverlay(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.Antialiasing)
+        painter.setPen(QPen(QColor("#88C0D0"), 2, Qt.SolidLine))
         
-        # Draw Border
-        pen = QPen(QColor("#88C0D0"))
-        pen.setWidth(2)
-        painter.setPen(pen)
-        painter.setBrush(Qt.NoBrush)
-        painter.drawRect(0, 0, self.width() - 1, self.height() - 1)
+        # Draw border
+        rect = self.rect().adjusted(1, 1, -2, -2)
+        painter.drawRect(rect)
         
-        # Draw Corner Handles
+        # Draw handles
         painter.setBrush(QColor("#88C0D0"))
-        painter.setPen(Qt.NoPen)
-        s = self.handle_size
-        w, h = self.width(), self.height()
+        h_size = self.handle_size
         
-        handles = [
-            QRect(0, 0, s, s), QRect(w-s, 0, s, s),
-            QRect(0, h-s, s, s), QRect(w-s, h-s, s, s)
-        ]
-        
-        for handle in handles:
-            painter.drawRect(handle)
+        # Top-Left
+        painter.drawRect(0, 0, h_size, h_size)
+        # Top-Right
+        painter.drawRect(self.rect().width() - h_size, 0, h_size, h_size)
+        # Bottom-Left
+        painter.drawRect(0, self.rect().height() - h_size, h_size, h_size)
+        # Bottom-Right
+        painter.drawRect(self.rect().width() - h_size, self.rect().height() - h_size, h_size, h_size)
 
     def _get_handle_at(self, pos):
         s = self.handle_size
@@ -116,11 +107,14 @@ class ImageResizerOverlay(QWidget):
             delta = event.globalPosition().toPoint() - self.start_pos
             new_rect = QRect(self.start_geometry)
             
-            # Maintain Aspect Ratio roughly, or just scale width/height
             if "right" in self.drag_handle:
-                new_rect.setWidth(max(50, self.start_geometry.width() + delta.x()))
+                new_w = max(50, self.start_geometry.width() + delta.x())
+                new_w = min(new_w, self.editor.viewport().width() - self.start_geometry.x() - 5)
+                new_rect.setWidth(new_w)
             elif "left" in self.drag_handle:
-                new_rect.setLeft(min(self.start_geometry.right() - 50, self.start_geometry.left() + delta.x()))
+                new_left = min(self.start_geometry.right() - 50, self.start_geometry.left() + delta.x())
+                new_left = max(5, new_left) # Prevent dragging past left edge
+                new_rect.setLeft(new_left)
                 
             if "bottom" in self.drag_handle:
                 new_rect.setHeight(max(50, self.start_geometry.height() + delta.y()))
@@ -129,7 +123,10 @@ class ImageResizerOverlay(QWidget):
                 
             self.setGeometry(new_rect)
             
-            # Update Document Image instantly
+    def mouseReleaseEvent(self, event):
+        if self.dragging:
+            # Apply final size to Document Image
+            new_rect = self.geometry()
             char_format = self.target_cursor.charFormat()
             image_format = char_format.toImageFormat()
             image_format.setWidth(new_rect.width())
@@ -140,7 +137,6 @@ class ImageResizerOverlay(QWidget):
             self.target_cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
             self.target_cursor.setCharFormat(image_format)
             
-    def mouseReleaseEvent(self, event):
         self.dragging = False
         self.drag_handle = None
         self.update_geometry() # snap perfectly to updated image
@@ -168,20 +164,37 @@ class RichTextEditor(QTextEdit):
         super().mousePressEvent(event)
         
         # Check for single click on Image
-        cursor = self.cursorForPosition(event.position().toPoint())
-        cursor.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
-        char_format = cursor.charFormat()
+        pos = event.position().toPoint()
+        cursor = self.cursorForPosition(pos)
         
-        if char_format.isImageFormat():
-            # Calculate explicitly stored size if possible to init properly
-            img_fmt = char_format.toImageFormat()
-            if img_fmt.width() <= 0:
-                # Set a default size so we can grab it
-                img_fmt.setWidth(300)
-                img_fmt.setHeight(300)
-                cursor.setCharFormat(img_fmt)
-                
-            self.active_overlay = ImageResizerOverlay(self, cursor)
+        candidates = []
+        c_right = QTextCursor(cursor)
+        c_right.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
+        if c_right.charFormat().isImageFormat():
+            candidates.append(c_right)
+            
+        c_left = QTextCursor(cursor)
+        c_left.movePosition(QTextCursor.Left, QTextCursor.KeepAnchor)
+        if c_left.charFormat().isImageFormat():
+            candidates.append(c_left)
+            
+        for c in candidates:
+            start_cursor = QTextCursor(c)
+            start_cursor.setPosition(c.selectionStart())
+            rect = self.cursorRect(start_cursor)
+            
+            img_fmt = c.charFormat().toImageFormat()
+            w = img_fmt.width() if img_fmt.width() > 0 else 300
+            h = img_fmt.height() if img_fmt.height() > 0 else 300
+            
+            img_rect = QRect(rect.x(), rect.y(), int(w), int(h))
+            if img_rect.contains(pos):
+                if img_fmt.width() <= 0:
+                    img_fmt.setWidth(300)
+                    img_fmt.setHeight(300)
+                    c.setCharFormat(img_fmt)
+                self.active_overlay = ImageResizerOverlay(self, c)
+                return
             
     def mouseDoubleClickEvent(self, event):
         pass # Remove old double click logic
@@ -201,20 +214,30 @@ class RichTextEditor(QTextEdit):
         # Interactive Checkboxes
         cursor = self.textCursor()
         
+        def toggle_checkbox(target_cursor):
+            char = "☑" if target_cursor.selectedText() == "☐" else "☐"
+            cf = target_cursor.charFormat()
+            font = cf.font()
+            font.setFamily("Segoe UI Symbol")
+            cf.setFont(font)
+            target_cursor.insertText(char)
+            # Re-select the inserted char to set the format correctly
+            target_cursor.movePosition(QTextCursor.Left, QTextCursor.KeepAnchor)
+            target_cursor.setCharFormat(cf)
+            target_cursor.clearSelection()
+            
         # Check char to the right
         cursor_right = QTextCursor(cursor)
         cursor_right.movePosition(QTextCursor.Right, QTextCursor.KeepAnchor)
         if cursor_right.selectedText() in ["☐", "☑"]:
-            char = "☑" if cursor_right.selectedText() == "☐" else "☐"
-            cursor_right.insertText(char)
+            toggle_checkbox(cursor_right)
             return
             
         # Check char to the left
         cursor_left = QTextCursor(cursor)
         cursor_left.movePosition(QTextCursor.Left, QTextCursor.KeepAnchor)
         if cursor_left.selectedText() in ["☐", "☑"]:
-            char = "☑" if cursor_left.selectedText() == "☐" else "☐"
-            cursor_left.insertText(char)
+            toggle_checkbox(cursor_left)
             return
             
     def mouseMoveEvent(self, event):

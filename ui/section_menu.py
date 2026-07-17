@@ -47,8 +47,11 @@ class SectionMenu(QWidget):
                 background-color: #242424;
             }
             QListWidget::item:selected {
-                background-color: #242424;
-                border: 1px solid #444444;
+                background-color: #2D2036;
+                border-left: 3px solid #B48EAD;
+                border-top: 1px solid #4D305A;
+                border-right: 1px solid #4D305A;
+                border-bottom: 1px solid #4D305A;
             }
         """)
         self.list_widget.itemSelectionChanged.connect(self.on_selection)
