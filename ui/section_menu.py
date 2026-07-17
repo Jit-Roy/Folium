@@ -41,19 +41,16 @@ class SectionMenu(QWidget):
                 background-color: #1A1A1A; 
                 border: 1px solid #2D2D2D; 
                 border-radius: 8px; 
-                margin-bottom: 8px;
             }
             QListWidget::item:hover {
                 background-color: #242424;
             }
             QListWidget::item:selected {
                 background-color: #2D2036;
-                border-left: 3px solid #B48EAD;
-                border-top: 1px solid #4D305A;
-                border-right: 1px solid #4D305A;
-                border-bottom: 1px solid #4D305A;
+                border: none;
             }
         """)
+        self.list_widget.setSpacing(8)
         self.list_widget.itemSelectionChanged.connect(self.on_selection)
         layout.addWidget(self.list_widget)
 
@@ -67,23 +64,22 @@ class SectionMenu(QWidget):
         
         # Hardcoding the structure as per requirements
         sections = [
-            ("NOTES", "My detailed notes", "5", "file-text"),
-            ("QUESTIONS", "Important questions", "25", "help-circle"),
-            ("RESOURCES", "Books, papers, videos, etc.", "7", "link"),
-            ("IMAGES", "Diagrams & screenshots", "12", "image"),
-            ("BOOKMARKS", "Useful web links", "6", "bookmark"),
-            ("FLASHCARDS", "For quick revision", "18", "layers"),
-            ("SUB TOPICS", "Multi Head Attention, KV Cache...", str(len(topic.children)), "git-branch"),
-            ("REFERENCED BY", "Transformers, LLMs...", "6", "link")
+            ("NOTES", "5", "file-text"),
+            ("QUESTIONS", "25", "help-circle"),
+            ("RESOURCES", "7", "link"),
+            ("IMAGES", "12", "image"),
+            ("BOOKMARKS", "6", "bookmark"),
+            ("FLASHCARDS", "18", "layers"),
+            ("SUB TOPICS", str(len(topic.children)), "git-branch"),
+            ("REFERENCED BY", "6", "link")
         ]
         
-        for name, desc, count, icon in sections:
+        for name, count, icon in sections:
             item_widget = QWidget()
-            item_widget.setMinimumHeight(60)
-            item_layout = QVBoxLayout(item_widget)
-            item_layout.setContentsMargins(15, 10, 15, 10)
-            
-            top_layout = QHBoxLayout()
+            item_widget.setMinimumHeight(46) # Increased height
+            item_layout = QHBoxLayout(item_widget)
+            item_layout.setContentsMargins(15, 0, 15, 0) # 0 top/bottom margins for perfect vertical centering
+            item_layout.setSpacing(10) # Good spacing between icon and title
             
             # Icon
             icon_label = QLabel()
@@ -91,24 +87,25 @@ class SectionMenu(QWidget):
             icon_label.setPixmap(icon_pixmap)
             
             title = QLabel(name)
-            title.setStyleSheet("color: #E0E0E0; font-weight: bold; font-size: 12px; border: none;")
+            title.setObjectName("title")
             
             count_label = QLabel(count)
-            count_label.setStyleSheet("color: #888888; font-size: 12px; border: none;")
+            count_label.setObjectName("count")
             
-            top_layout.addWidget(icon_label)
-            top_layout.addWidget(title)
-            top_layout.addStretch()
-            top_layout.addWidget(count_label)
+            item_layout.addWidget(icon_label)
+            item_layout.addWidget(title)
+            item_layout.addStretch()
+            item_layout.addWidget(count_label)
             
-            desc_label = QLabel(desc)
-            desc_label.setStyleSheet("color: #666666; font-size: 11px; border: none; padding-left: 22px;")
-            
-            item_layout.addLayout(top_layout)
-            item_layout.addWidget(desc_label)
+            # Default unselected style
+            item_widget.setStyleSheet("""
+                QWidget { background: transparent; }
+                QLabel#title { color: #E0E0E0; font-weight: bold; font-size: 12px; border: none; }
+                QLabel#count { color: #888888; font-size: 12px; border: none; }
+            """)
             
             list_item = QListWidgetItem(self.list_widget)
-            list_item.setSizeHint(item_widget.sizeHint())
+            list_item.setSizeHint(QSize(item_widget.sizeHint().width(), 46)) # Explicitly force the 46px height
             self.list_widget.addItem(list_item)
             self.list_widget.setItemWidget(list_item, item_widget)
             
@@ -123,6 +120,25 @@ class SectionMenu(QWidget):
 
     def on_selection(self):
         items = self.list_widget.selectedItems()
+        
+        # Update styles for all items based on selection state
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            widget = self.list_widget.itemWidget(item)
+            if widget:
+                if item.isSelected():
+                    widget.setStyleSheet("""
+                        QWidget { background: transparent; }
+                        QLabel#title { color: #B48EAD; font-weight: bold; font-size: 12px; border: none; }
+                        QLabel#count { color: #B48EAD; font-size: 12px; border: none; }
+                    """)
+                else:
+                    widget.setStyleSheet("""
+                        QWidget { background: transparent; }
+                        QLabel#title { color: #E0E0E0; font-weight: bold; font-size: 12px; border: none; }
+                        QLabel#count { color: #888888; font-size: 12px; border: none; }
+                    """)
+                    
         if items:
             section_name = items[0].data(Qt.UserRole)
             self.section_selected.emit(section_name)
