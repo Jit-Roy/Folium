@@ -82,10 +82,15 @@ class TopicExplorer(QWidget):
         topics_label = QLabel("TOPICS")
         topics_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #888888; letter-spacing: 1px;")
         
+        btn_style = """
+            QPushButton { border: none; background: transparent; border-radius: 4px; }
+            QPushButton:hover { background: rgba(255, 255, 255, 0.1); }
+        """
+        
         self.add_btn = QPushButton()
         self.add_btn.setIcon(QIcon("assets/icons/plus.svg"))
         self.add_btn.setFixedSize(24, 24)
-        self.add_btn.setStyleSheet("border: none; background: transparent;")
+        self.add_btn.setStyleSheet(btn_style)
         self.add_btn.clicked.connect(self.add_topic_prompt)
         
         topics_header.addWidget(topics_label)
@@ -128,8 +133,20 @@ class TopicExplorer(QWidget):
         self.topic_view.setStyleSheet("""
             QTreeView { background: transparent; border: none; outline: none; show-decoration-selected: 1; }
             QTreeView::item { padding: 4px; color: #CCCCCC; margin: 0px; border: none; border-radius: 0px; }
-            QTreeView::item:hover { background: #242424; }
             QTreeView::item:selected { background: #2D2036; color: #B48EAD; }
+            
+            QTreeView::branch { background: #121212; border-image: none; image: none; }
+            QTreeView::branch:selected { background: #2D2036; }
+            
+            QTreeView::branch:has-children:hover { background: #2A2A2A; }
+            QTreeView::branch:has-children:selected:hover { background: #42354B; }
+            
+            QTreeView::branch:has-children:closed {
+                image: url(assets/icons/chevron-right.svg);
+            }
+            QTreeView::branch:has-children:open {
+                image: url(assets/icons/chevron-down.svg);
+            }
             QTreeView QLineEdit { background: #1A1A1A; color: #FFFFFF; border: 1px solid #B48EAD; border-radius: 4px; padding: 2px; }
         """)
         self.topic_view.selectionModel().selectionChanged.connect(self.on_selection_changed)
@@ -297,27 +314,32 @@ class TopicExplorer(QWidget):
             btn_layout.setContentsMargins(0, 0, 0, 0)
             btn_layout.setSpacing(2)
             
+            inline_btn_style = """
+                QPushButton { border: none; background: transparent; padding: 2px; border-radius: 4px; }
+                QPushButton:hover { background: rgba(255, 255, 255, 0.1); }
+            """
+            
             add_btn = QPushButton()
             add_btn.setIcon(QIcon("assets/icons/plus.svg"))
             add_btn.setFixedSize(20, 20)
-            add_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            add_btn.setStyleSheet(inline_btn_style)
             add_btn.clicked.connect(lambda _, t_id=topic.id: self.add_subtopic(t_id))
             
             del_btn = QPushButton()
             del_btn.setIcon(QIcon("assets/icons/trash.svg"))
             del_btn.setFixedSize(20, 20)
-            del_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            del_btn.setStyleSheet(inline_btn_style)
             
             confirm_btn = QPushButton()
             confirm_btn.setIcon(QIcon("assets/icons/check.svg"))
             confirm_btn.setFixedSize(20, 20)
-            confirm_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            confirm_btn.setStyleSheet(inline_btn_style)
             confirm_btn.hide()
             
             cancel_btn = QPushButton()
             cancel_btn.setIcon(QIcon("assets/icons/x.svg"))
             cancel_btn.setFixedSize(20, 20)
-            cancel_btn.setStyleSheet("border: none; background: transparent; padding: 2px;")
+            cancel_btn.setStyleSheet(inline_btn_style)
             cancel_btn.hide()
             
             def show_confirm(a=add_btn, d=del_btn, c=confirm_btn, x=cancel_btn):
