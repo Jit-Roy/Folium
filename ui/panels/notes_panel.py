@@ -267,13 +267,36 @@ class NotesPanel(QWidget):
             first_idx = self.topic_model.index(0, 0)
             self.topic_view.setCurrentIndex(first_idx)
 
-    def select_topic(self, topic_id):
+    def select_topic(self, topic_id, block_signals=False):
         match = self.topic_model.match(
             self.topic_model.index(0, 0), Qt.UserRole, topic_id, 1,
             Qt.MatchExactly | Qt.MatchRecursive
         )
         if match:
+            if block_signals:
+                self.topic_view.selectionModel().blockSignals(True)
+                
+            from PySide6.QtCore import QItemSelectionModel
+            self.topic_view.selectionModel().select(
+                match[0], 
+                QItemSelectionModel.ClearAndSelect | QItemSelectionModel.Rows
+            )
             self.topic_view.setCurrentIndex(match[0])
+            
+            if block_signals:
+                self.topic_view.selectionModel().blockSignals(False)
+
+    def clear_selection(self, block_signals=False):
+        if block_signals:
+            self.topic_view.selectionModel().blockSignals(True)
+        
+        self.topic_view.selectionModel().clearSelection()
+        
+        from PySide6.QtCore import QModelIndex
+        self.topic_view.setCurrentIndex(QModelIndex())
+        
+        if block_signals:
+            self.topic_view.selectionModel().blockSignals(False)
 
     # ── Slot: action button handlers ───────────────────────────────────────
 

@@ -63,6 +63,7 @@ class SectionMenu(QWidget):
         self.title_label.setText(topic.name)
         
         # Hardcoding the structure as per requirements
+        children_count = getattr(topic, 'children_count', len(getattr(topic, 'children', [])))
         sections = [
             ("NOTES", "5", "file-text"),
             ("QUESTIONS", "25", "help-circle"),
@@ -70,7 +71,7 @@ class SectionMenu(QWidget):
             ("IMAGES", "12", "image"),
             ("BOOKMARKS", "6", "bookmark"),
             ("FLASHCARDS", "18", "layers"),
-            ("SUB TOPICS", str(len(topic.children)), "git-branch"),
+            ("SUB TOPICS", str(children_count), "git-branch"),
             ("REFERENCED BY", "6", "link")
         ]
         
