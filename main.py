@@ -95,6 +95,7 @@ class MainWindow(QMainWindow):
 
         # Notes panel → select topic → open tab
         self.notes_panel.topic_selected.connect(self.on_topic_selected)
+        self.notes_panel.topic_deleted.connect(self.on_topic_deleted)
 
         # Editor Tabs → tab changed → update UI
         self.editor_tabs.active_topic_changed.connect(self._on_active_tab_changed)
@@ -112,6 +113,14 @@ class MainWindow(QMainWindow):
         self.notes_panel.load_topics_from_db()
 
     # ── Slots ──────────────────────────────────────────────────────────────
+
+    def on_topic_deleted(self, deleted_ids):
+        for tid in deleted_ids:
+            self.editor_tabs.close_topic_without_saving(tid)
+
+        # Clear selection visually if the active topic was deleted
+        if self.current_topic and self.current_topic.id in deleted_ids:
+            self._on_active_tab_changed(None)
 
     def _on_panel_requested(self, key: str):
         self.side_panel.show_panel(key)

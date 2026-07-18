@@ -13,6 +13,7 @@ class NotesPanel(QWidget):
     Shows the topic tree with: workspace header, action buttons row, and tree view.
     """
     topic_selected = Signal(int)
+    topic_deleted = Signal(list)
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -361,8 +362,10 @@ class NotesPanel(QWidget):
 
         session = get_session()
         topic = session.get(Topic, topic_id)
+        deleted_ids = []
         if topic:
             def delete_recursive(t):
+                deleted_ids.append(t.id)
                 for child in t.children:
                     delete_recursive(child)
                 session.delete(t)
@@ -371,6 +374,8 @@ class NotesPanel(QWidget):
             session.commit()
         session.close()
         self.load_topics_from_db()
+        if deleted_ids:
+            self.topic_deleted.emit(deleted_ids)
 
     def rename_topic(self, topic_id, new_name):
         if not new_name.strip():
@@ -423,7 +428,7 @@ class NotesPanel(QWidget):
             item = self.topic_model.itemFromIndex(indexes[0])
             if item:
                 topic_id = item.data(Qt.UserRole)
-                if topic_id:
+                if topic_id and topic_id != "temp_new":
                     self.topic_selected.emit(topic_id)
 
     def _show_context_menu(self, pos: QPoint):
@@ -513,9 +518,12 @@ class NotesPanel(QWidget):
             try:
                 session.commit()
                 item.setData(new_topic.id, Qt.UserRole)
-                # Ensure the tree reflects exactly by doing a full reload
-                self.load_topics_from_db()
-                self.select_topic(new_topic.id)
+                # Ensure the tree reflects exactly by doing a full reload (deferred to prevent crash)
+                from PySide6.QtCore import QTimer
+                def reload_and_select(tid=new_topic.id):
+                    self.load_topics_from_db()
+                    self.select_topic(tid)
+                QTimer.singleShot(0, reload_and_select)
             except IntegrityError:
                 session.rollback()
                 QMessageBox.warning(self, "Duplicate Name", f"A note or folder named '{new_name}' already exists.")

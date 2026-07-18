@@ -150,6 +150,20 @@ class EditorTabs(QWidget):
                 del self.topic_map[topic_id]
                 
         self.tab_widget.removeTab(index)
+
+    def close_topic_without_saving(self, topic_id):
+        """Forcefully close a tab without triggering a save. Used when a topic is deleted."""
+        if topic_id in self.editors:
+            editor = self.editors[topic_id]
+            idx = self.tab_widget.indexOf(editor)
+            
+            # Remove references first so that when removeTab fires currentChanged, it doesn't find it
+            del self.editors[topic_id]
+            if topic_id in self.topic_map:
+                del self.topic_map[topic_id]
+                
+            if idx >= 0:
+                self.tab_widget.removeTab(idx)
         self._update_visibility()
         
     def _on_tab_changed(self, index):
