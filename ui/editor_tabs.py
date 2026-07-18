@@ -1,8 +1,52 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTabWidget, QLabel
+    QWidget, QVBoxLayout, QTabWidget, QLabel, QTabBar, QScrollBar, QHBoxLayout
 )
-from PySide6.QtCore import Qt, Signal
+from PySide6.QtCore import Qt, Signal, QPoint, QTimer, QSize
+from PySide6.QtGui import QWheelEvent
 from ui.editor import NoteEditor
+
+
+class HoverScrollBar(QScrollBar):
+    """A thin horizontal scrollbar that fades in on hover and out when mouse leaves."""
+    def __init__(self, parent=None):
+        super().__init__(Qt.Horizontal, parent)
+        self._fade_timer = QTimer(self)
+        self._fade_timer.setSingleShot(True)
+        self._fade_timer.timeout.connect(self.hide)
+        self.setFixedHeight(4)
+        self.setStyleSheet("""
+            QScrollBar:horizontal {
+                background: transparent;
+                border: none;
+                height: 4px;
+                margin: 0;
+            }
+            QScrollBar::handle:horizontal {
+                background: rgba(180, 142, 173, 0.7);
+                border-radius: 2px;
+                min-width: 30px;
+            }
+            QScrollBar::handle:horizontal:hover {
+                background: rgba(180, 142, 173, 1.0);
+            }
+            QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+                width: 0; border: none; background: none;
+            }
+            QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+                background: none;
+            }
+        """)
+        self.hide()
+
+    def show_briefly(self):
+        self.show()
+        self._fade_timer.stop()
+        self._fade_timer.start(1500)
+
+    def show_persistent(self):
+        self.show()
+        self._fade_timer.stop()
+
 
 class EditorTabs(QWidget):
     """
@@ -18,19 +62,23 @@ class EditorTabs(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        from PySide6.QtWidgets import QStackedWidget, QScrollArea
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        self.tab_widget = QTabWidget()
-        self.tab_widget.setTabsClosable(True)
-        self.tab_widget.setDocumentMode(True)
-        self.tab_widget.setMovable(True)
-        self.tab_widget.setStyleSheet("""
-            QTabWidget::pane {
-                border: none;
-                background: #121212;
-            }
+        self.stacked_editors = QStackedWidget()
+        self.stacked_editors.setStyleSheet("background: #121212;")
+
+        # Standalone Tab Bar
+        self._tab_bar = QTabBar()
+        self._tab_bar.setDocumentMode(True)
+        self._tab_bar.setTabsClosable(True)
+        self._tab_bar.setMovable(True)
+        self._tab_bar.setUsesScrollButtons(False)
+        self._tab_bar.setExpanding(False)
+        
+        self._tab_bar.setStyleSheet("""
             QTabBar::tab {
                 background: #181818;
                 color: #888888;
@@ -40,18 +88,18 @@ class EditorTabs(QWidget):
                 font-size: 13px;
                 min-width: 100px;
                 max-width: 200px;
+                height: 19px; /* Adjust total height to fit nicely */
             }
             QTabBar::tab:hover {
                 background: #1f1f1f;
                 color: #cccccc;
             }
             QTabBar::tab:selected {
-                background: #121212;
+                background: #6B4C8A;
                 color: #ffffff;
-                border-bottom: 2px solid #B48EAD;
             }
             QTabBar::close-button {
-                image: url(assets/icons/x.svg); /* Close icon placeholder */
+                image: url(assets/icons/x.svg);
                 subcontrol-position: right;
                 subcontrol-origin: padding;
             }
@@ -59,29 +107,112 @@ class EditorTabs(QWidget):
                 background: rgba(255,255,255,0.1);
                 border-radius: 2px;
             }
-            /* Fill the rest of the tab bar area */
-            QTabWidget::tab-bar {
-                alignment: left;
-            }
         """)
 
-        # Add a placeholder when empty
+        # Scroll Area to provide perfect pixel scrolling for the tab bar
+        self._scroll_area = QScrollArea()
+        self._scroll_area.setFixedHeight(35)
+        self._scroll_area.setWidgetResizable(True)
+        self._scroll_area.setFrameShape(QScrollArea.NoFrame)
+        self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self._scroll_area.setWidget(self._tab_bar)
+        self._scroll_area.setStyleSheet("background: #121212;")
+
+        # ── Dedicated hover scroll strip ───────────────────────────────────
+        self._scroll_bar = HoverScrollBar()
+
+        # Wire up our hover scrollbar to perfectly reflect the native scroll area
+        native_h_bar = self._scroll_area.horizontalScrollBar()
+        native_h_bar.rangeChanged.connect(self._scroll_bar.setRange)
+        native_h_bar.valueChanged.connect(self._scroll_bar.setValue)
+        
+        # Sync pageStep so the scroll handle resizes dynamically
+        native_h_bar.rangeChanged.connect(self._sync_scroll_metrics)
+        
+        self._scroll_bar.sliderMoved.connect(native_h_bar.setValue)
+        self._scroll_bar.sliderReleased.connect(self._check_fade_after_drag)
+
+        self._scroll_strip = QWidget()
+        self._scroll_strip.setFixedHeight(4)
+        self._scroll_strip.setStyleSheet("background: #121212;")
+        _ss_layout = QHBoxLayout(self._scroll_strip)
+        _ss_layout.setContentsMargins(0, 0, 0, 0)
+        _ss_layout.setSpacing(0)
+        _ss_layout.addWidget(self._scroll_bar)
+        self._scroll_strip.hide()
+
+        # Main Container
+        self._tab_container = QWidget()
+        _tc_layout = QVBoxLayout(self._tab_container)
+        _tc_layout.setContentsMargins(0, 0, 0, 0)
+        _tc_layout.setSpacing(0)
+        _tc_layout.addWidget(self._scroll_area)
+        _tc_layout.addWidget(self._scroll_strip)
+        _tc_layout.addWidget(self.stacked_editors)
+
+        # Placeholder
         self.empty_label = QLabel("Drag a note here or click one in the Explorer")
         self.empty_label.setAlignment(Qt.AlignCenter)
         self.empty_label.setStyleSheet("color: #555555; font-size: 16px; font-style: italic;")
-        
-        self.stacked = QVBoxLayout()
-        self.stacked.addWidget(self.empty_label)
-        self.stacked.addWidget(self.tab_widget)
-        self.tab_widget.hide()
-        
-        layout.addLayout(self.stacked)
 
-        self.tab_widget.tabCloseRequested.connect(self._on_tab_close)
-        self.tab_widget.currentChanged.connect(self._on_tab_changed)
+        layout.addWidget(self.empty_label)
+        layout.addWidget(self._tab_container)
+        self._tab_container.hide()
+
+        self._tab_bar.tabCloseRequested.connect(self._on_tab_close)
+        self._tab_bar.currentChanged.connect(self._on_tab_changed)
+        self._tab_bar.tabMoved.connect(self._on_tab_moved)
+
+        # Install event filters to translate wheel scrolls into smooth horizontal scrolls
+        self._scroll_area.installEventFilter(self)
+        self._tab_bar.installEventFilter(self)
 
         # Enable Drag and Drop
         self.setAcceptDrops(True)
+
+    def _sync_scroll_metrics(self):
+        """Syncs the page step of the native scrollbar to the custom hover scrollbar to dynamically size the handle."""
+        native = self._scroll_area.horizontalScrollBar()
+        self._scroll_bar.setPageStep(native.pageStep())
+
+    def _check_fade_after_drag(self):
+        """Called when the scrollbar handle is released. Fades out if the mouse is no longer hovering."""
+        if not (self._tab_bar.underMouse() or self._scroll_area.underMouse() or self._scroll_strip.underMouse()):
+            self._scroll_bar._fade_timer.start(800)
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent
+        if event.type() == QEvent.Wheel and obj in (self._scroll_area, self._tab_bar):
+            # Intercept wheel scroll and smoothly translate it to the horizontal scrollbar
+            h_bar = self._scroll_area.horizontalScrollBar()
+            dy = event.angleDelta().y()
+            dx = event.angleDelta().x()
+            
+            # Figure out the scroll delta (prefer horizontal swipe, fallback to vertical wheel)
+            if abs(dx) > abs(dy):
+                delta = dx
+            else:
+                delta = -dy  # inverted so scrolling mouse wheel down goes right
+
+            h_bar.setValue(h_bar.value() - delta)
+            
+            # Keep scrollbar visible when scrolling
+            if self._scroll_bar.maximum() > 0:
+                self._scroll_strip.show()
+                self._scroll_bar.show_persistent()
+            return True
+
+        if obj in (self._tab_bar, self._scroll_area):
+            if event.type() == QEvent.Enter:
+                if self._scroll_bar.maximum() > 0:
+                    self._scroll_strip.show()
+                    self._scroll_bar.show_persistent()
+            elif event.type() == QEvent.Leave:
+                if not self._scroll_bar.isSliderDown():
+                    self._scroll_bar._fade_timer.start(800)
+                
+        return super().eventFilter(obj, event)
 
     # ── Public API ─────────────────────────────────────────────────────────
 
@@ -95,9 +226,9 @@ class EditorTabs(QWidget):
         if topic_id in self.editors:
             # Switch to existing tab
             editor = self.editors[topic_id]
-            idx = self.tab_widget.indexOf(editor)
+            idx = self.stacked_editors.indexOf(editor)
             if idx >= 0:
-                self.tab_widget.setCurrentIndex(idx)
+                self._tab_bar.setCurrentIndex(idx)
             # Switch section if needed
             editor.load_topic(topic, section)
         else:
@@ -109,18 +240,16 @@ class EditorTabs(QWidget):
             self.editors[topic_id] = editor
             self.topic_map[topic_id] = topic
             
-            idx = self.tab_widget.addTab(editor, getattr(topic, 'name', 'Note'))
-            self.tab_widget.setTabToolTip(idx, getattr(topic, 'name', 'Note'))
-            self.tab_widget.setCurrentIndex(idx)
+            self.stacked_editors.addWidget(editor)
+            idx = self._tab_bar.addTab(getattr(topic, 'name', 'Note'))
+            self._tab_bar.setTabToolTip(idx, getattr(topic, 'name', 'Note'))
+            self._tab_bar.setCurrentIndex(idx)
             
         self._update_visibility()
 
     def get_current_editor(self):
         """Returns the currently active NoteEditor."""
-        idx = self.tab_widget.currentIndex()
-        if idx >= 0:
-            return self.tab_widget.widget(idx)
-        return None
+        return self.stacked_editors.currentWidget()
 
     def get_current_topic(self):
         """Returns the currently active topic object."""
@@ -138,8 +267,14 @@ class EditorTabs(QWidget):
 
     # ── Internal Callbacks ──────────────────────────────────────────────────
 
+    def _on_tab_moved(self, from_idx, to_idx):
+        """Syncs the QStackedWidget when a tab is dragged and dropped to reorder."""
+        widget = self.stacked_editors.widget(from_idx)
+        self.stacked_editors.removeWidget(widget)
+        self.stacked_editors.insertWidget(to_idx, widget)
+
     def _on_tab_close(self, index):
-        editor = self.tab_widget.widget(index)
+        editor = self.stacked_editors.widget(index)
         if editor:
             # Force save before closing
             editor.save_note()
@@ -149,13 +284,16 @@ class EditorTabs(QWidget):
             if topic_id in self.topic_map:
                 del self.topic_map[topic_id]
                 
-        self.tab_widget.removeTab(index)
+            self.stacked_editors.removeWidget(editor)
+            
+        self._tab_bar.removeTab(index)
+        self._update_visibility()
 
     def close_topic_without_saving(self, topic_id):
         """Forcefully close a tab without triggering a save. Used when a topic is deleted."""
         if topic_id in self.editors:
             editor = self.editors[topic_id]
-            idx = self.tab_widget.indexOf(editor)
+            idx = self.stacked_editors.indexOf(editor)
             
             # Remove references first so that when removeTab fires currentChanged, it doesn't find it
             del self.editors[topic_id]
@@ -163,10 +301,14 @@ class EditorTabs(QWidget):
                 del self.topic_map[topic_id]
                 
             if idx >= 0:
-                self.tab_widget.removeTab(idx)
+                self.stacked_editors.removeWidget(editor)
+                self._tab_bar.removeTab(idx)
         self._update_visibility()
         
     def _on_tab_changed(self, index):
+        if index >= 0:
+            self.stacked_editors.setCurrentIndex(index)
+            
         from PySide6.QtCore import QTimer
         def emit_change():
             topic = self.get_current_topic()
@@ -174,8 +316,8 @@ class EditorTabs(QWidget):
         QTimer.singleShot(0, emit_change)
 
     def _update_visibility(self):
-        has_tabs = self.tab_widget.count() > 0
-        self.tab_widget.setVisible(has_tabs)
+        has_tabs = self._tab_bar.count() > 0
+        self._tab_container.setVisible(has_tabs)
         self.empty_label.setVisible(not has_tabs)
 
     # ── Drag and Drop ──────────────────────────────────────────────────────

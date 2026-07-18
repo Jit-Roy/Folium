@@ -98,6 +98,8 @@ class MainWindow(QMainWindow):
 
         # Section menu → switch section in active editor tab
         self.section_menu.section_selected.connect(self.on_section_selected)
+        # Section menu breadcrumb → navigate to ancestor topic
+        self.section_menu.topic_navigated.connect(self.on_topic_selected)
 
         # Trash panel restore → refresh notes panel
         self.trash_panel.topic_restored.connect(self.notes_panel.load_topics_from_db)
@@ -126,22 +128,23 @@ class MainWindow(QMainWindow):
         topic = session.get(Topic, topic_id)
 
         if topic:
-            def get_path(t):
-                path = [t.name]
+            def get_path_parts(t):
+                parts = [(t.name, t.id)]
                 current = t
                 while current.parents:
                     current = current.parents[0]
-                    path.insert(0, current.name)
-                return " > ".join(path)
+                    parts.insert(0, (current.name, current.id))
+                return parts
 
             class _T:
-                def __init__(self, t, path_str):
+                def __init__(self, t, path_parts):
                     self.id = t.id
                     self.name = t.name
-                    self.path_str = path_str
+                    self.path_parts = path_parts
+                    self.path_str = " > ".join(n for n, _ in path_parts)
                     self.children_count = len(t.children)
 
-            t_obj = _T(topic, get_path(topic))
+            t_obj = _T(topic, get_path_parts(topic))
             self.editor_tabs.open_topic(t_obj, section="NOTES")
 
         session.close()
