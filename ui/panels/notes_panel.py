@@ -194,6 +194,22 @@ class NotesPanel(QWidget):
         except RuntimeError:
             pass # Signal was not connected yet
             
+        # Save expanded state
+        expanded_ids = set()
+        if self.topic_model.rowCount() > 0:
+            def save_expanded(parent_idx):
+                for row in range(self.topic_model.rowCount(parent_idx)):
+                    idx = self.topic_model.index(row, 0, parent_idx)
+                    if self.topic_view.isExpanded(idx):
+                        topic_id = idx.data(Qt.UserRole)
+                        if topic_id:
+                            expanded_ids.add(topic_id)
+                        save_expanded(idx)
+            from PySide6.QtCore import QModelIndex
+            save_expanded(QModelIndex())
+        else:
+            expanded_ids = None # Indicates first load
+            
         self.topic_model.clear()
 
         from core.database import get_session
@@ -225,13 +241,26 @@ class NotesPanel(QWidget):
             add_node(self.topic_model.invisibleRootItem(), root)
 
         session.close()
-        self.topic_view.expandAll()
+        
+        # Restore expanded state
+        if expanded_ids is None:
+            self.topic_view.expandAll()
+        else:
+            def restore_expanded(parent_idx):
+                for row in range(self.topic_model.rowCount(parent_idx)):
+                    idx = self.topic_model.index(row, 0, parent_idx)
+                    topic_id = idx.data(Qt.UserRole)
+                    if topic_id in expanded_ids:
+                        self.topic_view.expand(idx)
+                    restore_expanded(idx)
+            from PySide6.QtCore import QModelIndex
+            restore_expanded(QModelIndex())
 
         # Reconnect signal after populating model
         self.topic_model.rowsInserted.connect(self._on_rows_moved)
 
-        # Auto-select first item
-        if self.topic_model.rowCount() > 0:
+        # Auto-select first item if none is selected and it's the first load
+        if expanded_ids is None and self.topic_model.rowCount() > 0:
             first_idx = self.topic_model.index(0, 0)
             self.topic_view.setCurrentIndex(first_idx)
 
