@@ -14,7 +14,6 @@ from ui.panels.trash_panel import TrashPanel
 from ui.section_menu import SectionMenu
 from ui.editor_tabs import EditorTabs
 from ui.knowledge_panel import KnowledgePanel
-from ui.top_bar import TopBar
 from core.database import init_db, get_session
 from core.models import Topic
 
@@ -57,14 +56,11 @@ class MainWindow(QMainWindow):
         })
         main_splitter.addWidget(self.side_panel)
 
-        # ── Right area: TopBar + inner splitter ───────────────────────────
+        # ── Right area: inner splitter ───────────────────────────
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
-
-        self.top_bar = TopBar()
-        right_layout.addWidget(self.top_bar)
 
         inner_splitter = QSplitter(Qt.Horizontal)
         self.section_menu   = SectionMenu()
@@ -130,13 +126,22 @@ class MainWindow(QMainWindow):
         topic = session.get(Topic, topic_id)
 
         if topic:
+            def get_path(t):
+                path = [t.name]
+                current = t
+                while current.parents:
+                    current = current.parents[0]
+                    path.insert(0, current.name)
+                return " > ".join(path)
+
             class _T:
-                def __init__(self, t):
+                def __init__(self, t, path_str):
                     self.id = t.id
                     self.name = t.name
+                    self.path_str = path_str
                     self.children_count = len(t.children)
 
-            t_obj = _T(topic)
+            t_obj = _T(topic, get_path(topic))
             self.editor_tabs.open_topic(t_obj, section="NOTES")
 
         session.close()
@@ -147,17 +152,12 @@ class MainWindow(QMainWindow):
             # Sync selection in NotesPanel
             if hasattr(topic, 'id'):
                 self.notes_panel.select_topic(topic.id)
-
-            # Breadcrumb (we only have the immediate object here, full path needs querying if desired, 
-            # but for now we just show the name since the light wrapper drops parents)
-            self.top_bar.set_breadcrumb(f"Topic > {getattr(topic, 'name', 'Unknown')}")
             
             # Load panels
             self.section_menu.load_topic_sections(topic)
             self.knowledge_panel.load_references(topic)
         else:
             self.notes_panel.clear_selection()
-            self.top_bar.set_breadcrumb("")
             self.section_menu.load_topic_sections(None)
 
     def on_section_selected(self, section_name: str):
@@ -176,8 +176,8 @@ class MainWindow(QMainWindow):
                 def __init__(self, n):
                     self.id = n.id
                     self.name = n.daily_date or "Daily Note"
+                    self.path_str = f"Daily Notes > {date_str}"
 
-            self.top_bar.set_breadcrumb(f"Daily Notes > {date_str}")
             # Re-use editor to load daily note by its id via a wrapper
             self.editor_tabs.open_topic(_DailyTopic(note), section="NOTES")
 

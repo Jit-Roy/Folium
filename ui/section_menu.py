@@ -1,9 +1,33 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QLabel, QHBoxLayout, 
-    QListWidget, QListWidgetItem
+    QListWidget, QListWidgetItem, QSizePolicy
 )
-from PySide6.QtGui import QIcon, QPixmap
+from PySide6.QtGui import QIcon, QPixmap, QFontMetrics
 from PySide6.QtCore import Qt, Signal, QSize
+
+class WrappingLabel(QLabel):
+    def __init__(self, text=""):
+        super().__init__(text)
+        self.setWordWrap(True)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Minimum)
+        self.setAlignment(Qt.AlignLeft | Qt.AlignTop)
+        
+    def _update_height(self):
+        if not self.text() or self.width() <= 0:
+            return
+        metrics = QFontMetrics(self.font())
+        rect = metrics.boundingRect(0, 0, self.width(), 1000, 
+                                   Qt.TextWordWrap | Qt.AlignLeft, self.text())
+        # Add a tiny buffer so text doesn't clip vertically
+        self.setFixedHeight(rect.height() + 2)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._update_height()
+        
+    def setText(self, text):
+        super().setText(text)
+        self._update_height()
 
 class SectionMenu(QWidget):
     section_selected = Signal(str) # Emits the section name (e.g. "Notes")
@@ -19,19 +43,20 @@ class SectionMenu(QWidget):
         layout.setContentsMargins(10, 10, 10, 10)
         layout.setSpacing(15)
 
-        # Header Title
-        self.header_layout = QHBoxLayout()
-        self.title_label = QLabel("SELECT TOPIC")
-        self.title_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #888888; letter-spacing: 1px; text-transform: uppercase;")
+        # Header Title Area
+        self.header_container = QWidget()
+        self.header_container.setFixedHeight(55) # Locks the height so buttons below never jump
+        
+        self.header_layout = QVBoxLayout(self.header_container)
+        self.header_layout.setContentsMargins(0, 0, 0, 0)
+        self.header_layout.setAlignment(Qt.AlignTop)
+        
+        self.title_label = WrappingLabel("SELECT TOPIC")
+        self.title_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #888888; letter-spacing: 0.5px;")
         self.header_layout.addWidget(self.title_label)
-        self.header_layout.addStretch()
         
-        self.options_btn = QLabel("...")
-        self.options_btn.setStyleSheet("color: #888888; font-weight: bold;")
-        # No more button in image, actually the image has `...` next to "ATTENTION" text. 
-        self.header_layout.addWidget(self.options_btn)
-        
-        layout.addLayout(self.header_layout)
+        layout.addWidget(self.header_container)
+        layout.addSpacing(15)
 
         # Cards List
         self.list_widget = QListWidget()
@@ -58,9 +83,12 @@ class SectionMenu(QWidget):
         self.list_widget.clear()
         if not topic:
             self.title_label.setText("SELECT TOPIC")
+            self.title_label.setToolTip("")
             return
             
-        self.title_label.setText(topic.name)
+        path = getattr(topic, 'path_str', topic.name)
+        self.title_label.setText(path)
+        self.title_label.setToolTip(path)
         
         # Hardcoding the structure as per requirements
         children_count = getattr(topic, 'children_count', len(getattr(topic, 'children', [])))

@@ -42,9 +42,25 @@ class NotesPanel(QWidget):
         """)
         header_layout = QHBoxLayout(self.header)
         header_layout.setContentsMargins(10, 0, 8, 0)
-        header_layout.setSpacing(2)
+        header_layout.setSpacing(10)
 
-        header_layout.addStretch()
+        # Search Bar
+        self.search_box = QLineEdit()
+        self.search_box.setPlaceholderText("Search Name...")
+        self.search_box.setFixedHeight(26)
+        self.search_box.setStyleSheet("""
+            QLineEdit {
+                background-color: #1A1A1A;
+                border: 1px solid #2D2D2D;
+                border-radius: 4px;
+                padding: 4px 10px;
+                color: #FFFFFF;
+                font-size: 11px;
+            }
+        """)
+        self.search_box.addAction(QIcon("assets/icons/search.svg"), QLineEdit.LeadingPosition)
+        self.search_box.textChanged.connect(self._on_search_text_changed)
+        header_layout.addWidget(self.search_box)
 
         # Action buttons: New File, New Folder, Collapse All
         _ACTION_BTN_STYLE = """
@@ -65,16 +81,22 @@ class NotesPanel(QWidget):
             ("edit.svg",   "New Topic",      self.new_file),
             ("panel-collapse.svg",   "Collapse All",  self.collapse_all),
         ]
+        
+        button_layout = QHBoxLayout()
+        button_layout.setSpacing(0)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        
         for icon_file, tip, slot in action_specs:
             btn = QPushButton()
             btn.setIcon(QIcon(f"assets/icons/{icon_file}"))
             btn.setIconSize(QSize(18, 18))
-            btn.setFixedSize(34, 34)
+            btn.setFixedSize(26, 26)
             btn.setToolTip(tip)
             btn.setStyleSheet(_ACTION_BTN_STYLE)
             btn.clicked.connect(slot)
-            header_layout.addWidget(btn)
+            button_layout.addWidget(btn)
 
+        header_layout.addLayout(button_layout)
         layout.addWidget(self.header)
 
         # ── Separator ──────────────────────────────────────────────────────
@@ -421,6 +443,27 @@ class NotesPanel(QWidget):
         self.topic_view.edit(idx)
 
     # ── Private helpers ────────────────────────────────────────────────────
+
+    def _on_search_text_changed(self, text):
+        text = text.lower()
+        def filter_recursive(parent_item):
+            match_found = False
+            for row in range(parent_item.rowCount()):
+                child = parent_item.child(row)
+                if not child:
+                    continue
+                child_match = filter_recursive(child)
+                name = child.text().lower()
+                if text in name or child_match:
+                    self.topic_view.setRowHidden(row, parent_item.index(), False)
+                    match_found = True
+                    if child_match and text:
+                        self.topic_view.expand(child.index())
+                else:
+                    self.topic_view.setRowHidden(row, parent_item.index(), True)
+            return match_found
+        
+        filter_recursive(self.topic_model.invisibleRootItem())
 
     def _on_selection(self, selected, deselected):
         indexes = selected.indexes()

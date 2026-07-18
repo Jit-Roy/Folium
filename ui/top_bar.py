@@ -54,14 +54,7 @@ class TopBar(QWidget):
         
         layout.addStretch()
 
-        # Action Icons
-        icon_files = ["edit.svg", "calendar.svg", "bookmark.svg", "more-horizontal.svg"]
-        for f in icon_files:
-            btn = QPushButton()
-            btn.setIcon(QIcon(f"assets/icons/{f}"))
-            btn.setFixedSize(32, 32)
-            btn.setStyleSheet("border: none; background: transparent; color: #888888;")
-            layout.addWidget(btn)
+
 
     def set_breadcrumb(self, text):
         # We can format it nicely
