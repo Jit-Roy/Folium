@@ -21,6 +21,7 @@ class SidePanel(QWidget):
         self.setMaximumWidth(380)
         self._is_visible = True
 
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setObjectName("sidePanel")
         self.setStyleSheet("#sidePanel { background-color: #1e1e1e; border-right: 1px solid #2a2a2a; }")
 

@@ -24,6 +24,9 @@ class NotesPanel(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet("background-color: #1e1e1e;")
+        
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
