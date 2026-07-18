@@ -1,0 +1,12 @@
+<svg width="24" height="24" viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- File path exactly 15x17 centered at 12,12 -->
+    <path d="M6.64 3.50H14.14L19.50 8.50V18.50C19.50 19.60 18.54 20.50 17.36 20.50H6.64C5.46 20.50 4.50 19.60 4.50 18.50V5.50C4.50 4.40 5.46 3.50 6.64 3.50Z" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round" />
+    <path d="M14.14 3.50V8.50H19.50" stroke="#FFFFFF" stroke-width="1.6" stroke-linejoin="round" />
+    
+    <!-- Circle at exact bottom-right (19.5, 20.5) -->
+    <circle cx="19.5" cy="20.5" r="6.0" fill="#FFFFFF" />
+    
+    <!-- Plus sign significantly smaller than the circle to leave a gap -->
+    <path d="M19.5 17.5V23.5" stroke="#1E1E1E" stroke-width="1.6" stroke-linecap="round" />
+    <path d="M16.5 20.5H22.5" stroke="#1E1E1E" stroke-width="1.6" stroke-linecap="round" />
+</svg>

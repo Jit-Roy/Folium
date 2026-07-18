@@ -2,8 +2,7 @@ from PySide6.QtWidgets import QTextEdit, QWidget
 from PySide6.QtGui import QTextCursor, QTextFormat, QDesktopServices, QPainter, QColor, QPen
 from PySide6.QtCore import Qt, QUrl, QRect, QPoint, Signal, QTimer
 import os
-import logging
-logging.basicConfig(filename='debug.log', level=logging.DEBUG, format='%(asctime)s - %(message)s')
+
 
 class ImageResizerOverlay(QWidget):
     def __init__(self, editor, cursor):

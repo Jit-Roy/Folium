@@ -14,20 +14,19 @@ QSplitter::handle {
     width: 1px;
 }
 QTreeView {
-    background-color: #121212;
+    background-color: transparent;
     border: none;
     outline: none;
-    padding: 10px;
+    padding: 4px 0;
 }
 QTreeView::item {
-    padding: 5px;
-    border-radius: 4px;
+    padding: 4px;
 }
 QTreeView::item:hover {
-    background-color: #1E1E1E;
+    background-color: rgba(255,255,255,0.07);
 }
 QTreeView::item:selected {
-    background-color: #2D2D2D;
+    background-color: #37373d;
     color: #FFFFFF;
 }
 QTextEdit, QPlainTextEdit {
@@ -60,18 +59,42 @@ QLabel {
 }
 QScrollBar:vertical {
     background: #121212;
-    width: 8px;
+    width: 6px;
     margin: 0;
 }
 QScrollBar::handle:vertical {
     background: #333333;
     min-height: 20px;
-    border-radius: 4px;
+    border-radius: 3px;
 }
 QScrollBar::handle:vertical:hover {
     background: #555555;
 }
 QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
     height: 0px;
+}
+QScrollBar:horizontal {
+    background: #121212;
+    height: 6px;
+    margin: 0;
+}
+QScrollBar::handle:horizontal {
+    background: #333333;
+    min-width: 20px;
+    border-radius: 3px;
+}
+QScrollBar::handle:horizontal:hover {
+    background: #555555;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+QToolTip {
+    background: #252526;
+    color: #cccccc;
+    border: 1px solid #454545;
+    border-radius: 4px;
+    padding: 4px 8px;
+    font-size: 12px;
 }
 """

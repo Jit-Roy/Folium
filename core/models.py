@@ -17,6 +17,8 @@ class Topic(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(255), nullable=False, unique=True)
+    is_deleted = Column(Boolean, default=False, nullable=False)
+    order_index = Column(Integer, default=0, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -29,6 +31,7 @@ class Topic(Base):
         secondary=topic_hierarchy,
         primaryjoin=id==topic_hierarchy.c.parent_id,
         secondaryjoin=id==topic_hierarchy.c.child_id,
+        order_by="Topic.order_index",
         backref="parents"
     )
 
