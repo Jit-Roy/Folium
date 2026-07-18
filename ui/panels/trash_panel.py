@@ -17,6 +17,8 @@ class TrashPanel(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet("background-color: #1e1e1e;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -35,21 +37,22 @@ class TrashPanel(QWidget):
 
         title = QLabel("TRASH")
         title.setStyleSheet(
-            "font-size:11px; font-weight:700; color:#cccccc; letter-spacing:1px; padding-left:4px;"
+            "font-size:11px; font-weight:700; color:#cccccc; padding-left:4px;"
         )
         h_layout.addWidget(title)
         h_layout.addStretch()
 
         # Empty Trash button
         empty_btn = QPushButton("Empty")
-        empty_btn.setFixedSize(52, 20)
+        empty_btn.setFixedSize(56, 24)
         empty_btn.setStyleSheet("""
             QPushButton {
                 border: 1px solid #555;
                 background: transparent;
                 color: #888;
-                font-size: 10px;
+                font-size: 11px;
                 border-radius: 3px;
+                padding: 2px 4px;
             }
             QPushButton:hover { background: rgba(255,80,80,0.12); color: #ff6b6b; border-color: #ff6b6b; }
         """)
@@ -75,10 +78,13 @@ class TrashPanel(QWidget):
                 font-size: 13px;
                 padding: 4px 0;
             }
-            QListWidget::item { padding: 4px 8px; margin: 1px 4px; border-radius:3px; }
+            QListWidget:focus { outline: none; }
+            QListWidget::item { padding: 4px 8px; margin: 1px 4px; border-radius:3px; outline: none; }
             QListWidget::item:hover { background: rgba(255,255,255,0.06); }
-            QListWidget::item:selected { background: #37373d; }
+            QListWidget::item:selected { background: #37373d; border: none; outline: none; }
+            QListWidget::item:focus { outline: none; }
         """)
+        self.list_widget.setFocusPolicy(Qt.NoFocus)
         layout.addWidget(self.list_widget)
 
         self.load_trash()
@@ -117,18 +123,18 @@ class TrashPanel(QWidget):
             row.addStretch()
 
             restore_btn = QPushButton("Restore")
-            restore_btn.setFixedSize(52, 20)
+            restore_btn.setFixedSize(56, 24)
             restore_btn.setStyleSheet("""
-                QPushButton { border:1px solid #555; background:transparent; color:#888; font-size:10px; border-radius:3px; }
+                QPushButton { border:1px solid #555; background:transparent; color:#888; font-size:11px; border-radius:3px; padding: 2px 4px; }
                 QPushButton:hover { background:rgba(80,180,80,0.15); color:#7dbb7d; border-color:#7dbb7d; }
             """)
             restore_btn.clicked.connect(lambda _, tid=topic.id: self.restore_topic(tid))
             row.addWidget(restore_btn)
 
             del_btn = QPushButton("✕")
-            del_btn.setFixedSize(20, 20)
+            del_btn.setFixedSize(24, 24)
             del_btn.setStyleSheet("""
-                QPushButton { border:none; background:transparent; color:#666; font-size:12px; border-radius:3px; }
+                QPushButton { border:none; background:transparent; color:#666; font-size:14px; border-radius:3px; padding: 2px; }
                 QPushButton:hover { background:rgba(255,80,80,0.15); color:#ff6b6b; }
             """)
             del_btn.setToolTip("Delete forever")
@@ -136,7 +142,8 @@ class TrashPanel(QWidget):
             row.addWidget(del_btn)
 
             list_item = QListWidgetItem(self.list_widget)
-            list_item.setSizeHint(container.sizeHint())
+            container.setMinimumHeight(32)
+            list_item.setSizeHint(QSize(200, 36))
             list_item.setData(Qt.UserRole, topic.id)
             self.list_widget.addItem(list_item)
             self.list_widget.setItemWidget(list_item, container)

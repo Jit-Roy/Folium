@@ -21,7 +21,8 @@ class SidePanel(QWidget):
         self.setMaximumWidth(380)
         self._is_visible = True
 
-        self.setStyleSheet("background-color: #1e1e1e; border-right: 1px solid #2a2a2a;")
+        self.setObjectName("sidePanel")
+        self.setStyleSheet("#sidePanel { background-color: #1e1e1e; border-right: 1px solid #2a2a2a; }")
 
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)

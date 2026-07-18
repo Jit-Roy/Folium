@@ -3,6 +3,9 @@ QMainWindow {
     background-color: #121212;
     color: #E0E0E0;
 }
+* {
+    outline: none;
+}
 QWidget {
     background-color: #121212;
     color: #E0E0E0;

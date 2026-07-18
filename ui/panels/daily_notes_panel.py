@@ -18,6 +18,8 @@ class DailyNotesPanel(QWidget):
         self.init_ui()
 
     def init_ui(self):
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        self.setStyleSheet("background-color: #1e1e1e;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
@@ -36,8 +38,7 @@ class DailyNotesPanel(QWidget):
 
         title = QLabel("DAILY NOTES")
         title.setStyleSheet(
-            "font-size:11px; font-weight:700; color:#cccccc;"
-            "letter-spacing:1px; padding-left:4px;"
+            "font-size:11px; font-weight:700; color:#cccccc; padding-left:4px;"
         )
         header_layout.addWidget(title)
         header_layout.addStretch()
@@ -72,14 +73,18 @@ class DailyNotesPanel(QWidget):
                 font-size: 13px;
                 padding: 4px 0;
             }
+            QListWidget:focus { outline: none; }
             QListWidget::item {
                 padding: 6px 14px;
                 border-radius: 3px;
                 margin: 1px 4px;
+                outline: none;
             }
             QListWidget::item:hover { background: rgba(255,255,255,0.07); }
-            QListWidget::item:selected { background: #37373d; color:#ffffff; }
+            QListWidget::item:selected { background: #37373d; color:#ffffff; border: none; outline: none; }
+            QListWidget::item:focus { outline: none; }
         """)
+        self.list_widget.setFocusPolicy(Qt.NoFocus)
         self.list_widget.itemClicked.connect(self._on_item_clicked)
         layout.addWidget(self.list_widget)
 
