@@ -95,8 +95,8 @@ class EditorTabs(QWidget):
                 color: #cccccc;
             }
             QTabBar::tab:selected {
-                background: #6B4C8A;
-                color: #ffffff;
+                background: #2D2036;
+                color: #B48EAD;
             }
             QTabBar::close-button {
                 image: url(assets/icons/x.svg);
@@ -175,11 +175,20 @@ class EditorTabs(QWidget):
         """Syncs the page step of the native scrollbar to the custom hover scrollbar to dynamically size the handle."""
         native = self._scroll_area.horizontalScrollBar()
         self._scroll_bar.setPageStep(native.pageStep())
+        
+        # If tabs were removed or window resized such that no scroll is needed, hide immediately
+        if not self._is_scroll_needed():
+            self._scroll_strip.hide()
 
     def _check_fade_after_drag(self):
         """Called when the scrollbar handle is released. Fades out if the mouse is no longer hovering."""
         if not (self._tab_bar.underMouse() or self._scroll_area.underMouse() or self._scroll_strip.underMouse()):
             self._scroll_bar._fade_timer.start(800)
+
+    def _is_scroll_needed(self):
+        """Manually calculate if tabs exceed the viewport width."""
+        total_tab_width = sum(self._tab_bar.tabRect(i).width() for i in range(self._tab_bar.count()))
+        return total_tab_width > self._scroll_area.viewport().width()
 
     def eventFilter(self, obj, event):
         from PySide6.QtCore import QEvent
@@ -198,14 +207,14 @@ class EditorTabs(QWidget):
             h_bar.setValue(h_bar.value() - delta)
             
             # Keep scrollbar visible when scrolling
-            if self._scroll_bar.maximum() > 0:
+            if self._is_scroll_needed():
                 self._scroll_strip.show()
                 self._scroll_bar.show_persistent()
             return True
 
         if obj in (self._tab_bar, self._scroll_area):
             if event.type() == QEvent.Enter:
-                if self._scroll_bar.maximum() > 0:
+                if self._is_scroll_needed():
                     self._scroll_strip.show()
                     self._scroll_bar.show_persistent()
             elif event.type() == QEvent.Leave:
