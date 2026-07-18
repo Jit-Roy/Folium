@@ -48,7 +48,7 @@ class EditorTabs(QWidget):
             QTabBar::tab:selected {
                 background: #121212;
                 color: #ffffff;
-                border-top: 2px solid #007acc;
+                border-bottom: 2px solid #B48EAD;
             }
             QTabBar::close-button {
                 image: url(assets/icons/x.svg); /* Close icon placeholder */

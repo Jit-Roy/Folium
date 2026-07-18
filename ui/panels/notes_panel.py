@@ -61,13 +61,13 @@ class NotesPanel(QWidget):
             }
         """
         action_specs = [
-            ("panel-new-file.svg",   "New Topic",      self.new_file),
+            ("edit.svg",   "New Topic",      self.new_file),
             ("panel-collapse.svg",   "Collapse All",  self.collapse_all),
         ]
         for icon_file, tip, slot in action_specs:
             btn = QPushButton()
             btn.setIcon(QIcon(f"assets/icons/{icon_file}"))
-            btn.setIconSize(QSize(26, 26))
+            btn.setIconSize(QSize(18, 18))
             btn.setFixedSize(34, 34)
             btn.setToolTip(tip)
             btn.setStyleSheet(_ACTION_BTN_STYLE)
