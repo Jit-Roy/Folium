@@ -8,9 +8,7 @@ from ui.theme import MAIN_QSS
 from ui.activity_bar import ActivityBar
 from ui.side_panel import SidePanel
 from ui.panels.notes_panel import NotesPanel
-from ui.panels.daily_notes_panel import DailyNotesPanel
 from ui.panels.tags_panel import TagsPanel
-from ui.panels.trash_panel import TrashPanel
 from ui.editor_tabs import EditorTabs
 from ui.knowledge_panel import KnowledgePanel
 from core.database import init_db, get_session
@@ -43,15 +41,11 @@ class MainWindow(QMainWindow):
 
         # ── Side Panel (stacked pages) ────────────────────────────────────
         self.notes_panel   = NotesPanel()
-        self.daily_panel   = DailyNotesPanel()
         self.tags_panel    = TagsPanel()
-        self.trash_panel   = TrashPanel()
 
         self.side_panel = SidePanel({
             "notes": self.notes_panel,
-            "daily": self.daily_panel,
             "tags":  self.tags_panel,
-            "trash": self.trash_panel,
         })
         main_splitter.addWidget(self.side_panel)
 
@@ -100,10 +94,10 @@ class MainWindow(QMainWindow):
         self.editor_tabs.topic_navigated.connect(self.on_topic_selected)
 
         # Trash panel restore → refresh notes panel
-        self.trash_panel.topic_restored.connect(self.notes_panel.load_topics_from_db)
+        # (Trash panel removed)
 
         # Daily notes → open in editor
-        self.daily_panel.daily_note_selected.connect(self._on_daily_note_selected)
+        # (Daily notes panel removed)
 
         # ── Load data ─────────────────────────────────────────────────────
         self.notes_panel.load_topics_from_db()
@@ -162,25 +156,6 @@ class MainWindow(QMainWindow):
     def on_section_selected(self, section_name: str):
         if self.current_topic:
             self.editor_tabs.change_section_for_current(section_name)
-
-    def _on_daily_note_selected(self, date_str: str):
-        """Load a daily note into the editor."""
-        from core.models import Note
-        session = get_session()
-        note = session.query(Note).filter_by(is_daily=True, daily_date=date_str).first()
-
-        if note:
-            class _DailyTopic:
-                """Lightweight stand-in so the editor can load a daily note."""
-                def __init__(self, n):
-                    self.id = n.id
-                    self.name = n.daily_date or "Daily Note"
-                    self.path_str = f"Daily Notes > {date_str}"
-
-            # Re-use editor to load daily note by its id via a wrapper
-            self.editor_tabs.open_topic(_DailyTopic(note), section="NOTES")
-
-        session.close()
 
 
 if __name__ == "__main__":

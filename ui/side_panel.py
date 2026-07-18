@@ -2,13 +2,13 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget
 from PySide6.QtCore import Qt
 
 
-_PANEL_ORDER = ["notes", "daily", "tags", "trash"]
+_PANEL_ORDER = ["notes", "tags"]
 
 
 class SidePanel(QWidget):
     """
     Collapsible side panel that wraps a QStackedWidget.
-    Each 'page' corresponds to a panel key: notes | daily | tags | trash.
+    Each 'page' corresponds to a panel key: notes | tags.
     """
 
     def __init__(self, panels: dict, parent=None):

@@ -6,9 +6,7 @@ from PySide6.QtGui import QIcon
 # (icon_file, panel_key, tooltip)
 _PANELS = [
     ("act-notes.svg",  "notes", "Explorer"),
-    ("act-daily.svg",  "daily", "Daily Notes"),
     ("act-tags.svg",   "tags",  "Tags"),
-    ("act-trash.svg",  "trash", "Trash"),
 ]
 
 # Active button: prominent left border + subtle purple fill
@@ -58,7 +56,7 @@ class ActivityBar(QWidget):
     Emits `panel_requested(key)` when an icon is clicked.
     Clicking the already-active icon toggles the side panel visibility.
     """
-    panel_requested = Signal(str)   # "notes" | "daily" | "tags" | "trash"
+    panel_requested = Signal(str)   # "notes" | "tags"
     toggle_panel    = Signal()      # emitted when active icon clicked again
 
     def __init__(self, parent=None):
