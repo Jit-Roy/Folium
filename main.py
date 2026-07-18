@@ -11,7 +11,6 @@ from ui.panels.notes_panel import NotesPanel
 from ui.panels.daily_notes_panel import DailyNotesPanel
 from ui.panels.tags_panel import TagsPanel
 from ui.panels.trash_panel import TrashPanel
-from ui.section_menu import SectionMenu
 from ui.editor_tabs import EditorTabs
 from ui.knowledge_panel import KnowledgePanel
 from core.database import init_db, get_session
@@ -62,20 +61,21 @@ class MainWindow(QMainWindow):
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
 
+        # --- INNER SPLITTER (Editor & Knowledge Panel) ---
         inner_splitter = QSplitter(Qt.Horizontal)
-        self.section_menu   = SectionMenu()
+        inner_splitter.setStyleSheet("QSplitter::handle { background: #2a2a2a; }")
+
         self.editor_tabs    = EditorTabs()
         self.knowledge_panel = KnowledgePanel()
 
-        inner_splitter.addWidget(self.section_menu)
         inner_splitter.addWidget(self.editor_tabs)
         inner_splitter.addWidget(self.knowledge_panel)
-        inner_splitter.setStretchFactor(0, 1)
-        inner_splitter.setStretchFactor(1, 4)
-        inner_splitter.setStretchFactor(2, 2)
+
+        inner_splitter.setSizes([750, 250])
+        inner_splitter.setStretchFactor(0, 3)
+        inner_splitter.setStretchFactor(1, 1)
         inner_splitter.setCollapsible(0, False)
         inner_splitter.setCollapsible(1, False)
-        inner_splitter.setCollapsible(2, False)
 
         right_layout.addWidget(inner_splitter)
         main_splitter.addWidget(right_container)
@@ -96,10 +96,8 @@ class MainWindow(QMainWindow):
         # Editor Tabs → tab changed → update UI
         self.editor_tabs.active_topic_changed.connect(self._on_active_tab_changed)
 
-        # Section menu → switch section in active editor tab
-        self.section_menu.section_selected.connect(self.on_section_selected)
-        # Section menu breadcrumb → navigate to ancestor topic
-        self.section_menu.topic_navigated.connect(self.on_topic_selected)
+        # Editor tabs breadcrumb → navigate to ancestor topic
+        self.editor_tabs.topic_navigated.connect(self.on_topic_selected)
 
         # Trash panel restore → refresh notes panel
         self.trash_panel.topic_restored.connect(self.notes_panel.load_topics_from_db)
@@ -157,11 +155,9 @@ class MainWindow(QMainWindow):
                 self.notes_panel.select_topic(topic.id)
             
             # Load panels
-            self.section_menu.load_topic_sections(topic)
             self.knowledge_panel.load_references(topic)
         else:
             self.notes_panel.clear_selection()
-            self.section_menu.load_topic_sections(None)
 
     def on_section_selected(self, section_name: str):
         if self.current_topic:

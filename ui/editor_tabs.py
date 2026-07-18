@@ -4,6 +4,7 @@ from PySide6.QtWidgets import (
 from PySide6.QtCore import Qt, Signal, QPoint, QTimer, QSize
 from PySide6.QtGui import QWheelEvent
 from ui.editor import NoteEditor
+from ui.widgets.breadcrumb import BreadcrumbWidget
 
 
 class HoverScrollBar(QScrollBar):
@@ -54,6 +55,7 @@ class EditorTabs(QWidget):
     Supports drag and drop from the notes tree.
     """
     active_topic_changed = Signal(object) # Emits the topic object (or None)
+    topic_navigated = Signal(int) # Emits topic_id when breadcrumb is clicked
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -66,6 +68,17 @@ class EditorTabs(QWidget):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
+
+        # Breadcrumb at the very top
+        self.breadcrumb = BreadcrumbWidget()
+        self.breadcrumb.segment_clicked.connect(self.topic_navigated.emit)
+        
+        # We need a small container to give it some padding, or just set margins on a container
+        breadcrumb_container = QWidget()
+        bc_layout = QVBoxLayout(breadcrumb_container)
+        bc_layout.setContentsMargins(15, 10, 15, 10)
+        bc_layout.addWidget(self.breadcrumb)
+        layout.addWidget(breadcrumb_container)
 
         self.stacked_editors = QStackedWidget()
         self.stacked_editors.setStyleSheet("background: #121212;")
@@ -322,6 +335,14 @@ class EditorTabs(QWidget):
         def emit_change():
             topic = self.get_current_topic()
             self.active_topic_changed.emit(topic)
+            
+            # Update breadcrumb
+            if topic:
+                path_parts = getattr(topic, 'path_parts', [(topic.name, getattr(topic, 'id', 0))])
+                self.breadcrumb.set_path(path_parts)
+            else:
+                self.breadcrumb.set_path([])
+                
         QTimer.singleShot(0, emit_change)
 
     def _update_visibility(self):

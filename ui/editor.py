@@ -12,6 +12,7 @@ import os
 
 from ui.widgets.floating_widgets import FloatingInput, FloatingTableGrid
 from ui.widgets.rich_text_editor import RichTextEditor
+from ui.section_menu import SectionMenu
 
 class NoteEditor(QWidget):
     def __init__(self, parent=None):
@@ -44,7 +45,7 @@ class NoteEditor(QWidget):
         
         # Formatting Toolbar
         toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(30, 15, 30, 15)
+        toolbar.setContentsMargins(90, 15, 30, 15)
         toolbar.setSpacing(15)
         
         self.format_btns = {}
@@ -78,12 +79,15 @@ class NoteEditor(QWidget):
         toolbar.addWidget(more_btn)
         
         layout.addLayout(toolbar)
+
+        # Lower Area (Horizontal Splitter)
+        lower_layout = QHBoxLayout()
+        lower_layout.setContentsMargins(0, 0, 0, 0)
+        lower_layout.setSpacing(0)
         
-        # Separator line
-        line = QFrame()
-        line.setFrameShape(QFrame.HLine)
-        line.setStyleSheet("background-color: #1E1E1E;")
-        layout.addWidget(line)
+        self.section_menu = SectionMenu()
+        self.section_menu.section_selected.connect(self._on_section_selected)
+        lower_layout.addWidget(self.section_menu)
 
         # Content Area
         content_layout = QVBoxLayout()
@@ -133,7 +137,8 @@ class NoteEditor(QWidget):
         self.editor.setFont(font)
         
         content_layout.addWidget(self.editor)
-        layout.addLayout(content_layout)
+        lower_layout.addLayout(content_layout)
+        layout.addLayout(lower_layout)
         
         # Status Bar
         status_layout = QHBoxLayout()
@@ -150,6 +155,26 @@ class NoteEditor(QWidget):
         status_layout.addWidget(self.words_label)
         
         layout.addLayout(status_layout)
+
+    def _on_section_selected(self, section_name):
+        if self.current_section == section_name:
+            return
+            
+        # Save current note before switching
+        if self.save_timer.isActive():
+            self.save_timer.stop()
+            self.save_note()
+            
+        class _T:
+            def __init__(self, tid, name):
+                self.id = tid
+                self.name = name
+                self.children = []
+                self.children_count = 0
+                
+        # Load the new section
+        t = _T(self.current_topic_id, self.title_label.text()) if self.current_topic_id else None
+        self.load_topic(t, section_name)
 
     def update_toolbar_state(self):
         cursor = self.editor.textCursor()
@@ -367,11 +392,17 @@ class NoteEditor(QWidget):
             self.tag_bubble.hide()
             self.editor.clear()
             self.editor.setEnabled(False)
+            self.section_menu.load_topic_sections(None)
             return
             
-        self.title_label.setText(topic.name)
-        self.tag_bubble.setText(f"#{topic.name.lower().replace(' ', '')}")
-        self.tag_bubble.show()
+        self.section_menu.load_topic_sections(topic, section)
+        
+        self.title_label.setText(topic.name if hasattr(topic, 'name') else "Topic")
+        if hasattr(topic, 'name'):
+            self.tag_bubble.setText(f"#{topic.name.lower().replace(' ', '')}")
+            self.tag_bubble.show()
+        else:
+            self.tag_bubble.hide()
         
         from core.database import get_session
         from core.models import Note
