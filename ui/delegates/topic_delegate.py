@@ -1,4 +1,5 @@
 from PySide6.QtWidgets import QStyledItemDelegate, QStyle
+import sys
 from PySide6.QtGui import QIcon, QPainter
 from PySide6.QtCore import Qt, QRect, Signal, QObject, QEvent
 
@@ -19,29 +20,28 @@ class TopicDelegate(QStyledItemDelegate):
         self.icon_up = QIcon("assets/icons/arrow-up.svg")
         self.icon_down = QIcon("assets/icons/arrow-down.svg")
         
-        # State tracker: topic_id -> bool (True if confirming delete)
         self.confirming_delete = {}
         
         self.btn_size = 16
         self.padding = 6
+        
+        self._current_elide_width = None
+        self._current_font_metrics = None
+
+    def displayText(self, value, locale):
+        text = super().displayText(value, locale)
+        if self._current_elide_width is not None and self._current_font_metrics is not None:
+            if self._current_elide_width > 0:
+                text = self._current_font_metrics.elidedText(text, Qt.ElideRight, self._current_elide_width)
+            else:
+                text = ""
+        return text
 
     def paint(self, painter, option, index):
-        # Draw standard item (background and text)
-        super().paint(painter, option, index)
-        
-        # Only draw buttons if hovered or if it's currently confirming a delete
         topic_id = index.data(Qt.UserRole)
-        if not topic_id:
-            return
-
         is_hovered = bool(option.state & QStyle.State_MouseOver)
-        is_confirming = self.confirming_delete.get(topic_id, False)
-        
-        if not (is_hovered or is_confirming):
-            return
-            
-        # Calculate rects for the four buttons on the right edge
-        # Order from left to right: up, down, plus, trash
+        is_confirming = self.confirming_delete.get(topic_id, False) if topic_id else False
+
         rect = option.rect
         r4 = QRect(rect.right() - self.btn_size - self.padding, 
                    rect.top() + (rect.height() - self.btn_size) // 2, 
@@ -56,7 +56,23 @@ class TopicDelegate(QStyledItemDelegate):
                    r2.top(),
                    self.btn_size, self.btn_size) # Up
 
-        # Draw icons
+        if topic_id and (is_hovered or is_confirming):
+            btn_area_width = (self.btn_size * 4) + (self.padding * 2.5) + 5
+            available_width = rect.width() - btn_area_width
+            self._current_elide_width = available_width
+            self._current_font_metrics = option.fontMetrics
+        else:
+            self._current_elide_width = None
+            self._current_font_metrics = None
+
+        super().paint(painter, option, index)
+
+        self._current_elide_width = None
+        self._current_font_metrics = None
+
+        if not topic_id or not (is_hovered or is_confirming):
+            return
+
         if is_confirming:
             self.icon_check.paint(painter, r3)
             self.icon_cross.paint(painter, r4)
@@ -65,6 +81,26 @@ class TopicDelegate(QStyledItemDelegate):
             self.icon_down.paint(painter, r2)
             self.icon_plus.paint(painter, r3)
             self.icon_trash.paint(painter, r4)
+
+    def helpEvent(self, event, view, option, index):
+        if event.type() == QEvent.ToolTip:
+            from PySide6.QtWidgets import QToolTip
+            
+            topic_id = index.data(Qt.UserRole)
+            text = index.data(Qt.DisplayRole)
+            if topic_id and text:
+                rect = option.rect
+                btn_area_width = (self.btn_size * 4) + (self.padding * 2.5) + 5
+                
+                # We can't safely use style.subElementRect here due to PySide6 memory issues.
+                # Just assume standard text indent or use the same safe available_width formula:
+                available_width = rect.width() - btn_area_width
+                
+                if option.fontMetrics.horizontalAdvance(text) > available_width:
+                    QToolTip.showText(event.globalPos(), text, view)
+                    return True
+
+        return super().helpEvent(event, view, option, index)
 
     def editorEvent(self, event, model, option, index):
         if event.type() == QEvent.MouseButtonRelease and event.button() == Qt.LeftButton:
