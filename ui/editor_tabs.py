@@ -57,6 +57,7 @@ class EditorTabs(QWidget):
     active_topic_changed = Signal(object) # Emits the topic object (or None)
     topic_navigated = Signal(int) # Emits topic_id when breadcrumb is clicked
     toggle_reference_viewer = Signal()  # Relayed from whichever NoteEditor is active
+    tags_updated = Signal() # Relayed from whichever NoteEditor is active
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -269,6 +270,7 @@ class EditorTabs(QWidget):
             
             # Relay the panel-right toggle signal from this editor
             editor.toggle_reference_viewer.connect(self.toggle_reference_viewer.emit)
+            editor.tags_updated.connect(self.tags_updated.emit)
             
             self.stacked_editors.addWidget(editor)
             idx = self._tab_bar.addTab(getattr(topic, 'name', 'Note'))

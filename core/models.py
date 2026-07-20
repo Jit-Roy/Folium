@@ -12,6 +12,14 @@ topic_hierarchy = Table(
     Column('child_id', Integer, ForeignKey('topics.id'), primary_key=True)
 )
 
+# Association table for topics and tags
+topic_tags = Table(
+    'topic_tags',
+    Base.metadata,
+    Column('topic_id', Integer, ForeignKey('topics.id'), primary_key=True),
+    Column('tag_id', Integer, ForeignKey('tags.id'), primary_key=True)
+)
+
 class Topic(Base):
     __tablename__ = 'topics'
 
@@ -34,9 +42,30 @@ class Topic(Base):
         order_by="Topic.order_index",
         backref="parents"
     )
+    
+    tags = relationship(
+        "Tag",
+        secondary=topic_tags,
+        back_populates="topics"
+    )
 
     def __repr__(self):
         return f"<Topic(name='{self.name}')>"
+
+class Tag(Base):
+    __tablename__ = 'tags'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    name = Column(String(50), nullable=False, unique=True)
+    
+    topics = relationship(
+        "Topic",
+        secondary=topic_tags,
+        back_populates="tags"
+    )
+    
+    def __repr__(self):
+        return f"<Tag(name='{self.name}')>"
 
 class Note(Base):
     __tablename__ = 'notes'

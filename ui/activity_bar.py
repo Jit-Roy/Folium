@@ -74,7 +74,7 @@ class ActivityBar(QWidget):
         )
 
         layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 12, 0, 8)
+        layout.setContentsMargins(0, 12, 0, 0)
         layout.setSpacing(4)
         layout.setAlignment(Qt.AlignTop)
 

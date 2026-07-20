@@ -16,6 +16,8 @@ from ui.section_menu import SectionMenu
 
 class NoteEditor(QWidget):
     toggle_reference_viewer = Signal()  # emitted when panel-right button is clicked
+    tags_updated = Signal() # emitted when a tag is added
+    
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_topic_id = None
@@ -108,25 +110,19 @@ class NoteEditor(QWidget):
         content_layout.addWidget(self.title_label)
         
         # Tags area
-        tags_layout = QHBoxLayout()
-        self.tag_bubble = QLabel("#tag")
-        self.tag_bubble.setStyleSheet("""
-            background-color: #2D2036; 
-            color: #B48EAD; 
-            padding: 4px 10px; 
-            border-radius: 12px;
-            font-size: 11px;
-            border: 1px solid #4D305A;
-        """)
-        self.tag_bubble.hide()
+        self.tags_layout = QHBoxLayout()
         
-        add_tag_btn = QPushButton("Add tag")
-        add_tag_btn.setStyleSheet("border: none; background: transparent; color: #888888; font-size: 11px;")
+        self.add_tag_btn = QPushButton("Add tag")
+        self.add_tag_btn.setStyleSheet("border: none; background: transparent; color: #888888; font-size: 11px;")
         
-        tags_layout.addWidget(self.tag_bubble)
-        tags_layout.addWidget(add_tag_btn)
-        tags_layout.addStretch()
-        content_layout.addLayout(tags_layout)
+        from ui.widgets.floating_widgets import FloatingInput
+        self.tag_input = FloatingInput(placeholder="Enter tag name...")
+        self.tag_input.submitted.connect(self.on_tag_submitted)
+        self.add_tag_btn.clicked.connect(self.show_tag_input)
+        
+        self.tags_layout.addWidget(self.add_tag_btn)
+        self.tags_layout.addStretch()
+        content_layout.addLayout(self.tags_layout)
         
         # Main Editor
         self.editor = RichTextEditor()
@@ -165,6 +161,105 @@ class NoteEditor(QWidget):
         status_layout.addWidget(self.words_label)
         
         layout.addLayout(status_layout)
+
+    def show_tag_input(self):
+        if not self.current_topic_id:
+            return
+        rect = self.add_tag_btn.geometry()
+        pos = self.add_tag_btn.parentWidget().mapToGlobal(rect.bottomLeft())
+        self.tag_input.show_at(pos)
+
+    def on_tag_submitted(self, text):
+        if not self.current_topic_id:
+            return
+            
+        tag_name = text.strip().lower()
+        if tag_name.startswith("#"):
+            tag_name = tag_name[1:]
+            
+        from core.database import get_session
+        from core.models import Topic, Tag
+        
+        session = get_session()
+        topic = session.query(Topic).get(self.current_topic_id)
+        if topic:
+            tag = session.query(Tag).filter_by(name=tag_name).first()
+            if not tag:
+                tag = Tag(name=tag_name)
+                session.add(tag)
+            
+            if tag not in topic.tags:
+                topic.tags.append(tag)
+                session.commit()
+                self._add_tag_bubble(tag.name)
+                self.tags_updated.emit()
+                
+        session.close()
+
+    def _add_tag_bubble(self, tag_name):
+        from PySide6.QtWidgets import QFrame
+        from PySide6.QtCore import Qt, QSize
+        from PySide6.QtGui import QIcon
+        
+        container = QFrame()
+        container.setObjectName("tagBubble")
+        container.setStyleSheet("""
+            QFrame#tagBubble {
+                background-color: #2D2036; 
+                border-radius: 12px;
+                border: 1px solid #4D305A;
+            }
+        """)
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(10, 4, 8, 4)
+        layout.setSpacing(6)
+        
+        lbl = QLabel(f"#{tag_name}")
+        lbl.setStyleSheet("color: #B48EAD; font-size: 11px; border: none; background: transparent; padding: 0px;")
+        
+        close_btn = QPushButton()
+        close_btn.setIcon(QIcon("assets/icons/x.svg"))
+        close_btn.setIconSize(QSize(12, 12))
+        close_btn.setCursor(Qt.PointingHandCursor)
+        close_btn.setFixedSize(16, 16)
+        close_btn.setStyleSheet("""
+            QPushButton {
+                border: none; 
+                background: transparent;
+                border-radius: 8px;
+            }
+            QPushButton:hover {
+                background: rgba(255, 255, 255, 0.1);
+            }
+        """)
+        close_btn.clicked.connect(lambda: self.remove_tag(tag_name, container))
+        
+        layout.addWidget(lbl)
+        layout.addWidget(close_btn)
+        
+        idx = self.tags_layout.count() - 2
+        if idx < 0:
+            idx = 0
+        self.tags_layout.insertWidget(idx, container)
+
+    def remove_tag(self, tag_name, widget):
+        if not self.current_topic_id:
+            return
+            
+        from core.database import get_session
+        from core.models import Topic, Tag
+        
+        session = get_session()
+        topic = session.query(Topic).get(self.current_topic_id)
+        if topic:
+            tag = session.query(Tag).filter_by(name=tag_name).first()
+            if tag and tag in topic.tags:
+                topic.tags.remove(tag)
+                session.commit()
+                widget.deleteLater()
+                self.tags_updated.emit()
+                
+        session.close()
 
     def _on_section_selected(self, section_name):
         if self.current_section == section_name:
@@ -399,20 +494,25 @@ class NoteEditor(QWidget):
         
         if not topic:
             self.title_label.setText("Select a topic")
-            self.tag_bubble.hide()
+            self._clear_tags()
             self.editor.clear()
             self.editor.setEnabled(False)
             self.section_menu.load_topic_sections(None)
             return
             
         self.section_menu.load_topic_sections(topic, section)
-        
         self.title_label.setText(topic.name if hasattr(topic, 'name') else "Topic")
-        if hasattr(topic, 'name'):
-            self.tag_bubble.setText(f"#{topic.name.lower().replace(' ', '')}")
-            self.tag_bubble.show()
-        else:
-            self.tag_bubble.hide()
+        
+        self._clear_tags()
+        if hasattr(topic, 'id'):
+            from core.database import get_session
+            from core.models import Topic
+            session = get_session()
+            db_topic = session.query(Topic).get(topic.id)
+            if db_topic:
+                for t in db_topic.tags:
+                    self._add_tag_bubble(t.name)
+            session.close()
         
         from core.database import get_session
         from core.models import Note
@@ -438,3 +538,10 @@ class NoteEditor(QWidget):
         
         self.on_text_changed()
         self.status_label.setText("Loaded")
+
+    def _clear_tags(self):
+        # Remove all widgets from tags_layout except the add button and stretch
+        while self.tags_layout.count() > 2:
+            item = self.tags_layout.takeAt(0)
+            if item.widget():
+                item.widget().deleteLater()

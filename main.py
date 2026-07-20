@@ -61,6 +61,8 @@ class MainWindow(QMainWindow):
         # ── Side Panel (stacked pages) ────────────────────────────────────
         self.notes_panel   = NotesPanel()
         self.tags_panel    = TagsPanel()
+        
+        self.tags_panel.topic_selected.connect(self.on_topic_selected)
 
         self.side_panel = SidePanel({
             "notes": self.notes_panel,
@@ -82,6 +84,7 @@ class MainWindow(QMainWindow):
 
         self.editor_tabs = EditorTabs()
         self.editor_tabs.setMinimumWidth(750)  # Keep the canvas wide enough for all H1/H2 formatting buttons!
+        self.editor_tabs.tags_updated.connect(self.tags_panel.load_tags)
         self.knowledge_panel = KnowledgePanel()
 
         self.inner_splitter.addWidget(self.editor_tabs)
