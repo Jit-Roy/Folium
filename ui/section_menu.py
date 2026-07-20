@@ -50,16 +50,16 @@ class SectionMenu(QWidget):
         # Hardcoding the structure as per requirements
         children_count = getattr(topic, 'children_count', len(getattr(topic, 'children', [])))
         sections = [
-            ("NOTES", "5", "file-text"),
-            ("QUESTIONS", "25", "help-circle"),
-            ("RESOURCES", "7", "link"),
-            ("IMAGES", "12", "image"),
-            ("FLASHCARDS", "18", "layers"),
-            ("SUB TOPICS", str(children_count), "git-branch")
+            ("NOTES", "file-text"),
+            ("QUESTIONS", "help-circle"),
+            ("RESOURCES", "link"),
+            ("IMAGES", "image"),
+            ("FLASHCARDS", "layers"),
+            ("SUB TOPICS", "git-branch")
         ]
         
         target_row = 0
-        for i, (name, count, icon) in enumerate(sections):
+        for i, (name, icon) in enumerate(sections):
             item_widget = QWidget()
             item_widget.setFixedSize(50, 50)
             item_layout = QVBoxLayout(item_widget)
@@ -74,7 +74,7 @@ class SectionMenu(QWidget):
             
             list_item = QListWidgetItem(self.list_widget)
             list_item.setSizeHint(QSize(50, 50))
-            list_item.setToolTip(f"{name} ({count})")
+            list_item.setToolTip(name)
             
             self.list_widget.addItem(list_item)
             self.list_widget.setItemWidget(list_item, item_widget)
