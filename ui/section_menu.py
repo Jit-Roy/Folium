@@ -54,10 +54,8 @@ class SectionMenu(QWidget):
             ("QUESTIONS", "25", "help-circle"),
             ("RESOURCES", "7", "link"),
             ("IMAGES", "12", "image"),
-            ("BOOKMARKS", "6", "bookmark"),
             ("FLASHCARDS", "18", "layers"),
-            ("SUB TOPICS", str(children_count), "git-branch"),
-            ("REFERENCED BY", "6", "link")
+            ("SUB TOPICS", str(children_count), "git-branch")
         ]
         
         target_row = 0

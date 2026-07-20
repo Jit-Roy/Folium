@@ -31,16 +31,46 @@ class TaskItemWidget(QWidget):
         self.checkbox.toggled.connect(self._on_toggled)
         layout.addWidget(self.checkbox, stretch=1)
         
-        delete_btn = QPushButton()
-        delete_btn.setIcon(QIcon("assets/icons/trash.svg"))
-        delete_btn.setFixedSize(24, 24)
-        delete_btn.setToolTip("Delete task")
-        delete_btn.setStyleSheet(
+        self.delete_btn = QPushButton()
+        self.delete_btn.setIcon(QIcon("assets/icons/trash.svg"))
+        self.delete_btn.setFixedSize(24, 24)
+        self.delete_btn.setToolTip("Delete task")
+        
+        btn_style = (
             "QPushButton { border: none; background: transparent; }"
             "QPushButton:hover { background: rgba(255,255,255,0.1); border-radius: 4px; }"
         )
-        delete_btn.clicked.connect(self._on_delete)
-        layout.addWidget(delete_btn)
+        self.delete_btn.setStyleSheet(btn_style)
+        self.delete_btn.clicked.connect(self._show_confirm)
+        layout.addWidget(self.delete_btn)
+        
+        self.confirm_btn = QPushButton()
+        self.confirm_btn.setIcon(QIcon("assets/icons/check.svg"))
+        self.confirm_btn.setFixedSize(24, 24)
+        self.confirm_btn.setStyleSheet(btn_style)
+        self.confirm_btn.setToolTip("Confirm delete")
+        self.confirm_btn.hide()
+        self.confirm_btn.clicked.connect(self._on_delete)
+        layout.addWidget(self.confirm_btn)
+        
+        self.cancel_btn = QPushButton()
+        self.cancel_btn.setIcon(QIcon("assets/icons/x.svg"))
+        self.cancel_btn.setFixedSize(24, 24)
+        self.cancel_btn.setStyleSheet(btn_style)
+        self.cancel_btn.setToolTip("Cancel delete")
+        self.cancel_btn.hide()
+        self.cancel_btn.clicked.connect(self._hide_confirm)
+        layout.addWidget(self.cancel_btn)
+        
+    def _show_confirm(self):
+        self.delete_btn.hide()
+        self.confirm_btn.show()
+        self.cancel_btn.show()
+        
+    def _hide_confirm(self):
+        self.confirm_btn.hide()
+        self.cancel_btn.hide()
+        self.delete_btn.show()
         
     def _on_toggled(self, checked):
         if self.parent_panel:
@@ -62,38 +92,25 @@ class TasksPanel(QWidget):
         layout.setContentsMargins(15, 15, 15, 15)
         layout.setSpacing(10)
         
+        header_layout = QHBoxLayout()
+        header_layout.setContentsMargins(5, 0, 5, 0)
         title = QLabel("To-Do List")
         title.setStyleSheet("color: #FFFFFF; font-size: 16px; font-weight: bold;")
-        layout.addWidget(title)
+        header_layout.addWidget(title)
         
-        # Add task input
-        input_layout = QHBoxLayout()
-        self.task_input = QLineEdit()
-        self.task_input.setPlaceholderText("Add a new task...")
-        self.task_input.setStyleSheet("""
-            QLineEdit {
-                background: #1e1e1e;
-                border: 1px solid #333333;
-                border-radius: 5px;
-                padding: 6px 10px;
-                color: #cccccc;
-                font-size: 13px;
-            }
-            QLineEdit:focus { border: 1px solid #B48EAD; }
-        """)
-        self.task_input.returnPressed.connect(self._add_task)
-        input_layout.addWidget(self.task_input, stretch=1)
+        header_layout.addStretch()
         
         add_btn = QPushButton()
         add_btn.setIcon(QIcon("assets/icons/plus.svg"))
-        add_btn.setFixedSize(30, 30)
-        add_btn.setStyleSheet("""
-            QPushButton { background: #2D2036; border: 1px solid #4D305A; border-radius: 4px; }
-            QPushButton:hover { background: #3E2B4B; }
-        """)
-        add_btn.clicked.connect(self._add_task)
-        input_layout.addWidget(add_btn)
-        layout.addLayout(input_layout)
+        add_btn.setFixedSize(26, 26)
+        add_btn.setToolTip("Add new task")
+        add_btn.setStyleSheet(
+            "QPushButton { border: none; background: transparent; border-radius: 4px; }"
+            "QPushButton:hover { background: rgba(255,255,255,0.1); }"
+        )
+        add_btn.clicked.connect(self._add_task_inline)
+        header_layout.addWidget(add_btn)
+        layout.addLayout(header_layout)
         
         # Tasks list
         self.list_widget = QListWidget()
@@ -105,7 +122,9 @@ class TasksPanel(QWidget):
             }
             QListWidget::item { border-bottom: 1px solid #222; }
             QListWidget::item:hover { background: #1a1a1a; }
+            QListWidget QLineEdit { background: #1A1A1A; color: #FFFFFF; border: 1px solid #B48EAD; border-radius: 4px; padding: 2px; }
         """)
+        self.list_widget.itemDelegate().closeEditor.connect(self._on_editor_closed)
         layout.addWidget(self.list_widget, stretch=1)
         
         self.empty_label = QLabel("No active topic selected.")
@@ -119,12 +138,10 @@ class TasksPanel(QWidget):
         if not topic_id:
             self.empty_label.show()
             self.list_widget.hide()
-            self.task_input.setEnabled(False)
             return
             
         self.empty_label.hide()
         self.list_widget.show()
-        self.task_input.setEnabled(True)
         self.load_tasks()
         
     def load_tasks(self):
@@ -140,19 +157,31 @@ class TasksPanel(QWidget):
             
         session.close()
         
-    def _add_task(self):
-        content = self.task_input.text().strip()
-        if not content or not self.current_topic_id:
+    def _add_task_inline(self):
+        if not self.current_topic_id:
             return
             
-        session = get_session()
-        new_task = Task(topic_id=self.current_topic_id, content=content)
-        session.add(new_task)
-        session.commit()
+        item = QListWidgetItem()
+        item.setData(Qt.UserRole, "temp_new")
+        item.setFlags(item.flags() | Qt.ItemIsEditable)
+        self.list_widget.addItem(item)
+        self.list_widget.setCurrentItem(item)
+        self.list_widget.editItem(item)
         
-        self._add_task_to_list(new_task.id, new_task.content, False)
-        self.task_input.clear()
-        session.close()
+    def _on_editor_closed(self, editor, hint):
+        for i in range(self.list_widget.count()):
+            item = self.list_widget.item(i)
+            if item.data(Qt.UserRole) == "temp_new":
+                content = item.text().strip()
+                self.list_widget.takeItem(i)
+                if content:
+                    session = get_session()
+                    new_task = Task(topic_id=self.current_topic_id, content=content)
+                    session.add(new_task)
+                    session.commit()
+                    self._add_task_to_list(new_task.id, new_task.content, False)
+                    session.close()
+                break
         
     def _add_task_to_list(self, task_id: int, content: str, is_completed: bool):
         item = QListWidgetItem(self.list_widget)
