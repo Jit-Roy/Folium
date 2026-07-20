@@ -61,6 +61,7 @@ class ActivityBar(QWidget):
 
     def __init__(self, parent=None):
         super().__init__(parent)
+        self.setAttribute(Qt.WA_StyledBackground, True)
         self.setFixedWidth(48)
         self._active: str | None = None
         self.buttons: dict[str, QPushButton] = {}
@@ -68,8 +69,8 @@ class ActivityBar(QWidget):
 
     def _init_ui(self):
         self.setStyleSheet(
-            "background-color: #181818;"
-            "border-right: 1px solid #2a2a2a;"
+            "background-color: #141414;"
+            "border-right: 1px solid #222222;"
         )
 
         layout = QVBoxLayout(self)

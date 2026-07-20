@@ -56,6 +56,7 @@ class EditorTabs(QWidget):
     """
     active_topic_changed = Signal(object) # Emits the topic object (or None)
     topic_navigated = Signal(int) # Emits topic_id when breadcrumb is clicked
+    toggle_reference_viewer = Signal()  # Relayed from whichever NoteEditor is active
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -238,6 +239,10 @@ class EditorTabs(QWidget):
 
     # ── Public API ─────────────────────────────────────────────────────────
 
+    def get_current_editor(self):
+        """Returns the currently active NoteEditor widget."""
+        return self.stack.currentWidget()
+
     def open_topic(self, topic, section="NOTES"):
         """Opens a topic in a new tab or switches to it if already open."""
         if not topic:
@@ -261,6 +266,9 @@ class EditorTabs(QWidget):
             # Add to map
             self.editors[topic_id] = editor
             self.topic_map[topic_id] = topic
+            
+            # Relay the panel-right toggle signal from this editor
+            editor.toggle_reference_viewer.connect(self.toggle_reference_viewer.emit)
             
             self.stacked_editors.addWidget(editor)
             idx = self._tab_bar.addTab(getattr(topic, 'name', 'Note'))

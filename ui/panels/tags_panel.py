@@ -17,7 +17,7 @@ class TagsPanel(QWidget):
 
     def init_ui(self):
         self.setAttribute(Qt.WA_StyledBackground, True)
-        self.setStyleSheet("background-color: #1e1e1e;")
+        self.setStyleSheet("background-color: #181818;")
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)

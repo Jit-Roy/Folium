@@ -71,3 +71,14 @@ class NoteReference(Base):
     
     note = relationship("Note", back_populates="references")
     referenced_topic = relationship("Topic")
+
+class Task(Base):
+    __tablename__ = 'tasks'
+    
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    topic_id = Column(Integer, ForeignKey('topics.id'), nullable=False)
+    content = Column(String(500), nullable=False)
+    is_completed = Column(Boolean, default=False)
+    created_at = Column(DateTime, default=datetime.utcnow)
+    
+    topic = relationship("Topic")

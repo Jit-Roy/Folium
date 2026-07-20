@@ -15,6 +15,7 @@ from ui.widgets.rich_text_editor import RichTextEditor
 from ui.section_menu import SectionMenu
 
 class NoteEditor(QWidget):
+    toggle_reference_viewer = Signal()  # emitted when panel-right button is clicked
     def __init__(self, parent=None):
         super().__init__(parent)
         self.current_topic_id = None
@@ -73,10 +74,19 @@ class NoteEditor(QWidget):
             self.format_btns[icon] = btn
             
         toolbar.addStretch()
-        more_btn = QPushButton()
-        more_btn.setIcon(QIcon("assets/icons/more-horizontal.svg"))
-        more_btn.setStyleSheet("border: none; background: transparent; color: #888888;")
-        toolbar.addWidget(more_btn)
+        self.panel_right_btn = QPushButton()
+        self.panel_right_btn.setIcon(QIcon("assets/icons/panel-right.svg"))
+        self.panel_right_btn.setFixedSize(28, 28)
+        self.panel_right_btn.setToolTip("Toggle Reference Viewer")
+        self.panel_right_btn.setCheckable(True)
+        self.panel_right_btn.setChecked(True)  # panel starts open
+        self.panel_right_btn.setStyleSheet("""
+            QPushButton { border: none; background: transparent; color: #888888; }
+            QPushButton:hover { background: #242424; border-radius: 4px; }
+            QPushButton:checked { background: #2D2036; border-radius: 4px; color: #B48EAD; }
+        """)
+        self.panel_right_btn.clicked.connect(self.toggle_reference_viewer.emit)
+        toolbar.addWidget(self.panel_right_btn)
         
         layout.addLayout(toolbar)
 
