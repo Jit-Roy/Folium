@@ -1,5 +1,6 @@
 from PySide6.QtWidgets import (
-    QWidget, QVBoxLayout, QTabWidget, QLabel, QTabBar, QScrollBar, QHBoxLayout
+    QWidget, QVBoxLayout, QTabWidget, QLabel, QTabBar, QScrollBar, QHBoxLayout,
+    QScrollArea, QStackedWidget
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QTimer, QSize
 from PySide6.QtGui import QWheelEvent
@@ -63,6 +64,8 @@ class EditorTabs(QWidget):
         super().__init__(parent)
         self.editors = {} # Maps topic_id to NoteEditor instance
         self.topic_map = {} # Maps topic_id to Topic object
+        self.pinned_topics = set()
+        self.locked_topics = set()
         self.init_ui()
 
     def init_ui(self):
@@ -88,7 +91,7 @@ class EditorTabs(QWidget):
         # Standalone Tab Bar
         self._tab_bar = QTabBar()
         self._tab_bar.setDocumentMode(True)
-        self._tab_bar.setTabsClosable(True)
+        self._tab_bar.setTabsClosable(False)  # We manage close buttons manually
         self._tab_bar.setMovable(True)
         self._tab_bar.setUsesScrollButtons(False)
         self._tab_bar.setExpanding(False)
@@ -97,13 +100,13 @@ class EditorTabs(QWidget):
             QTabBar::tab {
                 background: #181818;
                 color: #888888;
-                padding: 8px 12px;
+                padding: 8px 8px 8px 12px;
                 border: none;
                 border-right: 1px solid #2a2a2a;
                 font-size: 13px;
                 min-width: 100px;
                 max-width: 200px;
-                height: 19px; /* Adjust total height to fit nicely */
+                height: 19px;
             }
             QTabBar::tab:hover {
                 background: #1f1f1f;
@@ -112,15 +115,6 @@ class EditorTabs(QWidget):
             QTabBar::tab:selected {
                 background: #2D2036;
                 color: #B48EAD;
-            }
-            QTabBar::close-button {
-                image: url(assets/icons/x.svg);
-                subcontrol-position: right;
-                subcontrol-origin: padding;
-            }
-            QTabBar::close-button:hover {
-                background: rgba(255,255,255,0.1);
-                border-radius: 2px;
             }
         """)
 
@@ -162,8 +156,57 @@ class EditorTabs(QWidget):
         _tc_layout = QVBoxLayout(self._tab_container)
         _tc_layout.setContentsMargins(0, 0, 0, 0)
         _tc_layout.setSpacing(0)
-        _tc_layout.addWidget(self._scroll_area)
-        _tc_layout.addWidget(self._scroll_strip)
+        
+        # ── Header row with tabs and action buttons ──
+        tab_header = QWidget()
+        tab_header.setFixedHeight(39)
+        tab_header.setStyleSheet("background: #121212;")
+        th_layout = QHBoxLayout(tab_header)
+        th_layout.setContentsMargins(0, 0, 0, 0)
+        th_layout.setSpacing(0)
+        
+        left_widget = QWidget()
+        left_layout = QVBoxLayout(left_widget)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(0)
+        left_layout.addWidget(self._scroll_area)
+        left_layout.addWidget(self._scroll_strip)
+        
+        th_layout.addWidget(left_widget, stretch=1)
+        
+        # Right action buttons container
+        from PySide6.QtGui import QIcon
+        from PySide6.QtWidgets import QPushButton
+        
+        actions_widget = QWidget()
+        actions_layout = QHBoxLayout(actions_widget)
+        actions_layout.setContentsMargins(5, 0, 10, 0)
+        actions_layout.setSpacing(6)
+        
+        # Pin Note icon
+        self.btn_pin = QPushButton()
+        self.btn_pin.setIcon(QIcon("assets/icons/pin.svg"))
+        self.btn_pin.setFixedSize(24, 24)
+        self.btn_pin.setToolTip("Pin Note")
+        self.btn_pin.clicked.connect(self._toggle_pin_current)
+        
+        # Lock / Read-Only Mode icon
+        self.btn_lock = QPushButton()
+        self.btn_lock.setIcon(QIcon("assets/icons/unlock.svg"))
+        self.btn_lock.setFixedSize(24, 24)
+        self.btn_lock.setToolTip("Lock / Read-Only Mode")
+        self.btn_lock.clicked.connect(self._toggle_lock_current)
+        
+        for btn in (self.btn_pin, self.btn_lock):
+            btn.setStyleSheet("""
+                QPushButton { border: none; background: transparent; border-radius: 4px; }
+                QPushButton:hover { background: #2a2a2a; }
+            """)
+            actions_layout.addWidget(btn)
+            
+        th_layout.addWidget(actions_widget)
+        
+        _tc_layout.addWidget(tab_header)
         _tc_layout.addWidget(self.stacked_editors)
 
         # Placeholder
@@ -275,6 +318,7 @@ class EditorTabs(QWidget):
             self.stacked_editors.addWidget(editor)
             idx = self._tab_bar.addTab(getattr(topic, 'name', 'Note'))
             self._tab_bar.setTabToolTip(idx, getattr(topic, 'name', 'Note'))
+            self._tab_bar.setTabButton(idx, QTabBar.RightSide, self._make_close_btn(idx))
             self._tab_bar.setCurrentIndex(idx)
             
         self._update_visibility()
@@ -299,6 +343,98 @@ class EditorTabs(QWidget):
 
     # ── Internal Callbacks ──────────────────────────────────────────────────
 
+    def _toggle_pin_current(self):
+        editor = self.get_current_editor()
+        if not editor or not getattr(editor, 'current_topic_id', None):
+            return
+        tid = editor.current_topic_id
+        idx = self._tab_bar.currentIndex()
+        from PySide6.QtGui import QIcon
+        
+        if tid in self.pinned_topics:
+            self.pinned_topics.remove(tid)
+            self._tab_bar.setTabIcon(idx, QIcon())
+            # Move tab to just after the last pinned tab
+            new_idx = len(self.pinned_topics)
+            if idx != new_idx:
+                self._tab_bar.moveTab(idx, new_idx)
+        else:
+            self.pinned_topics.add(tid)
+            self._tab_bar.setTabIcon(idx, QIcon("assets/icons/pin-filled.svg"))
+            # Move to the end of the pinned tabs group (left side)
+            new_idx = len(self.pinned_topics) - 1
+            if idx != new_idx:
+                self._tab_bar.moveTab(idx, new_idx)
+                
+        self._update_action_buttons()
+
+    def _toggle_lock_current(self):
+        editor = self.get_current_editor()
+        if not editor or not getattr(editor, 'current_topic_id', None):
+            return
+        tid = editor.current_topic_id
+        if tid in self.locked_topics:
+            self.locked_topics.remove(tid)
+            editor.set_read_only(False)
+        else:
+            self.locked_topics.add(tid)
+            editor.set_read_only(True)
+        self._update_action_buttons()
+
+    def _update_action_buttons(self):
+        editor = self.get_current_editor()
+        if not editor or not getattr(editor, 'current_topic_id', None):
+            self.btn_pin.setEnabled(False)
+            self.btn_lock.setEnabled(False)
+            return
+        self.btn_pin.setEnabled(True)
+        self.btn_lock.setEnabled(True)
+        
+        tid = editor.current_topic_id
+        from PySide6.QtGui import QIcon
+        if tid in self.pinned_topics:
+            self.btn_pin.setIcon(QIcon("assets/icons/pin-filled.svg"))
+        else:
+            self.btn_pin.setIcon(QIcon("assets/icons/pin.svg"))
+            
+        if tid in self.locked_topics:
+            self.btn_lock.setIcon(QIcon("assets/icons/lock.svg"))
+        else:
+            self.btn_lock.setIcon(QIcon("assets/icons/unlock.svg"))
+
+    def _make_close_btn(self, idx):
+        """Creates a custom close button widget for a tab, giving us full layout control."""
+        from PySide6.QtWidgets import QPushButton
+        from PySide6.QtGui import QIcon
+        
+        # Wrap button in a container so QTabBar respects our right margin
+        container = QWidget()
+        container_layout = QHBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 8, 0)  # 8px gap on the right
+        container_layout.setSpacing(0)
+        
+        btn = QPushButton()
+        btn.setIcon(QIcon("assets/icons/x.svg"))
+        btn.setFixedSize(16, 16)
+        btn.setIconSize(btn.size())
+        btn.setCursor(Qt.ArrowCursor)
+        btn.setStyleSheet("""
+            QPushButton { border: none; background: transparent; border-radius: 3px; }
+            QPushButton:hover { background: rgba(255,255,255,0.12); }
+        """)
+        btn.clicked.connect(lambda: self._close_btn_clicked(btn))
+        container_layout.addWidget(btn)
+        return container
+
+    def _close_btn_clicked(self, btn):
+        """Finds which tab the clicked close button belongs to, then closes it."""
+        # btn's parent is the container widget we set via setTabButton
+        container = btn.parent()
+        for i in range(self._tab_bar.count()):
+            if self._tab_bar.tabButton(i, QTabBar.RightSide) is container:
+                self._on_tab_close(i)
+                return
+
     def _on_tab_moved(self, from_idx, to_idx):
         """Syncs the QStackedWidget when a tab is dragged and dropped to reorder."""
         widget = self.stacked_editors.widget(from_idx)
@@ -308,9 +444,11 @@ class EditorTabs(QWidget):
     def _on_tab_close(self, index):
         editor = self.stacked_editors.widget(index)
         if editor:
+            topic_id = editor.current_topic_id
+            if topic_id in self.pinned_topics:
+                self.pinned_topics.remove(topic_id)
             # Force save before closing
             editor.save_note()
-            topic_id = editor.current_topic_id
             if topic_id in self.editors:
                 del self.editors[topic_id]
             if topic_id in self.topic_map:
@@ -340,6 +478,8 @@ class EditorTabs(QWidget):
     def _on_tab_changed(self, index):
         if index >= 0:
             self.stacked_editors.setCurrentIndex(index)
+            
+        self._update_action_buttons()
             
         from PySide6.QtCore import QTimer
         def emit_change():

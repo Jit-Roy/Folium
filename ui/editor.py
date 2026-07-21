@@ -41,6 +41,15 @@ class NoteEditor(QWidget):
         self.table_grid = FloatingTableGrid(self)
         self.table_grid.submitted.connect(self.insert_custom_table)
 
+    def set_read_only(self, readonly: bool):
+        self.editor.setReadOnly(readonly)
+        for btn in self.format_btns.values():
+            btn.setVisible(not readonly)
+        self.add_tag_btn.setVisible(not readonly)
+        if hasattr(self, 'title_label'):
+            # You might want to let them know it's locked by appending to title? No, just keep it simple.
+            pass
+
     def init_ui(self):
         layout = QVBoxLayout(self)
         layout.setContentsMargins(0, 0, 0, 0)
@@ -48,7 +57,7 @@ class NoteEditor(QWidget):
         
         # Formatting Toolbar
         toolbar = QHBoxLayout()
-        toolbar.setContentsMargins(90, 15, 30, 15)
+        toolbar.setContentsMargins(90, 15, 8, 15)
         toolbar.setSpacing(15)
         
         self.format_btns = {}
