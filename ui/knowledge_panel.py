@@ -158,6 +158,41 @@ class KnowledgePanel(QWidget):
         """
 
     # ── Public API ─────────────────────────────────────────────────────────────
+    def save_state(self, settings):
+        settings.beginGroup("knowledge_panel")
+        
+        # Save active tab name
+        active_tab = "REFERENCE"
+        for name, btn in self._tab_buttons.items():
+            if btn.isChecked():
+                active_tab = name
+                break
+        settings.setValue("active_tab", active_tab)
+        
+        # Save visibility of the panel
+        settings.setValue("is_visible", self.isVisible())
+        
+        settings.endGroup()
+        
+        # Delegate to children
+        self.reference_panel.save_state(settings)
+        
+    def restore_state(self, settings):
+        settings.beginGroup("knowledge_panel")
+        
+        active_tab = settings.value("active_tab", "REFERENCE")
+        self._select_tab(active_tab)
+        
+        # is_visible determines whether we start expanded or collapsed
+        is_visible = settings.value("is_visible", True, type=bool)
+        if not is_visible:
+            self.hide()
+        
+        settings.endGroup()
+        
+        # Delegate to children
+        self.reference_panel.restore_state(settings)
+
     def load_references(self, topic):
         pass
         

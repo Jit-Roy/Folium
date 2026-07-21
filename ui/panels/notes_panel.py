@@ -285,11 +285,6 @@ class NotesPanel(QWidget):
         # Reconnect signal after populating model
         self.topic_model.rowsInserted.connect(self._on_rows_moved)
 
-        # Auto-select first item if none is selected and it's the first load
-        if expanded_ids is None and self.topic_model.rowCount() > 0:
-            first_idx = self.topic_model.index(0, 0)
-            self.topic_view.setCurrentIndex(first_idx)
-
     def select_topic(self, topic_id, block_signals=False):
         match = self.topic_model.match(
             self.topic_model.index(0, 0), Qt.UserRole, topic_id, 1,

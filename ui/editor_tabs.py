@@ -6,6 +6,8 @@ from PySide6.QtCore import Qt, Signal, QPoint, QTimer, QSize
 from PySide6.QtGui import QWheelEvent
 from ui.editor import NoteEditor
 from ui.widgets.breadcrumb import BreadcrumbWidget
+from core.database import get_session
+from core.models import Topic
 
 
 class HoverScrollBar(QScrollBar):
@@ -248,6 +250,103 @@ class EditorTabs(QWidget):
         total_tab_width = sum(self._tab_bar.tabRect(i).width() for i in range(self._tab_bar.count()))
         return total_tab_width > self._scroll_area.viewport().width()
 
+    def save_state(self, settings):
+        """Persist the exact order of tabs and their statuses."""
+        settings.beginGroup("editor_tabs")
+        
+        # Get ordered topic IDs based on the tab bar
+        ordered_ids = []
+        for i in range(self._tab_bar.count()):
+            editor = self.stacked_editors.widget(i)
+            if editor and getattr(editor, 'current_topic_id', None):
+                ordered_ids.append(editor.current_topic_id)
+                
+        settings.setValue("open_topics", ordered_ids)
+        settings.setValue("pinned_topics", list(self.pinned_topics))
+        settings.setValue("locked_topics", list(self.locked_topics))
+        settings.setValue("current_index", self._tab_bar.currentIndex())
+        
+        settings.endGroup()
+
+    def restore_state(self, settings):
+        """Restore tabs, their order, and their pin/lock states."""
+        settings.beginGroup("editor_tabs")
+        
+        open_topics = settings.value("open_topics", [])
+        # QSettings might return strings, ensure they are ints
+        if open_topics and isinstance(open_topics, list):
+            try:
+                open_topics = [int(x) for x in open_topics if x]
+            except ValueError:
+                open_topics = []
+                
+        pinned = settings.value("pinned_topics", [])
+        if pinned and isinstance(pinned, list):
+            self.pinned_topics = {int(x) for x in pinned if x}
+            
+        locked = settings.value("locked_topics", [])
+        if locked and isinstance(locked, list):
+            self.locked_topics = {int(x) for x in locked if x}
+
+        current_index = settings.value("current_index", 0)
+        
+        session = get_session()
+        
+        # Helper to build the Topic object exactly as on_topic_selected does
+        def get_path_parts(t):
+            parts = [(t.name, t.id)]
+            current = t
+            while current.parents:
+                current = current.parents[0]
+                parts.insert(0, (current.name, current.id))
+            return parts
+
+        class _T:
+            def __init__(self, t, path_parts):
+                self.id = t.id
+                self.name = t.name
+                self.path_parts = path_parts
+                self.path_str = " > ".join(n for n, _ in path_parts)
+                self.children_count = len(t.children)
+
+        # Force pinned topics to always be restored first (on the left)
+        if open_topics:
+            open_topics.sort(key=lambda tid: 0 if tid in self.pinned_topics else 1)
+            
+        # Restore each tab
+        if open_topics:
+            for tid in open_topics:
+                topic_db = session.get(Topic, tid)
+                if topic_db:
+                    t_obj = _T(topic_db, get_path_parts(topic_db))
+                    self.open_topic(t_obj, section="NOTES")
+                    
+                    # Apply lock state if needed
+                    if tid in self.locked_topics:
+                        editor = self.editors.get(tid)
+                        if editor:
+                            editor.set_read_only(True)
+            
+            # Apply pinned UI state
+            for i in range(self._tab_bar.count()):
+                editor = self.stacked_editors.widget(i)
+                if editor and editor.current_topic_id in self.pinned_topics:
+                    from PySide6.QtGui import QIcon
+                    self._tab_bar.setTabIcon(i, QIcon("assets/icons/pin-filled.svg"))
+
+            # Restore active index
+            try:
+                current_index = int(current_index)
+                if 0 <= current_index < self._tab_bar.count():
+                    self._tab_bar.setCurrentIndex(current_index)
+            except (ValueError, TypeError):
+                pass
+                
+        session.close()
+        
+        settings.endGroup()
+        self._update_action_buttons()
+
     def eventFilter(self, obj, event):
         from PySide6.QtCore import QEvent
         if event.type() == QEvent.Wheel and obj in (self._scroll_area, self._tab_bar):
@@ -358,6 +457,7 @@ class EditorTabs(QWidget):
             new_idx = len(self.pinned_topics)
             if idx != new_idx:
                 self._tab_bar.moveTab(idx, new_idx)
+                self._on_tab_moved(idx, new_idx)
         else:
             self.pinned_topics.add(tid)
             self._tab_bar.setTabIcon(idx, QIcon("assets/icons/pin-filled.svg"))
@@ -365,6 +465,7 @@ class EditorTabs(QWidget):
             new_idx = len(self.pinned_topics) - 1
             if idx != new_idx:
                 self._tab_bar.moveTab(idx, new_idx)
+                self._on_tab_moved(idx, new_idx)
                 
         self._update_action_buttons()
 

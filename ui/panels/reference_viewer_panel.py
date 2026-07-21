@@ -107,27 +107,37 @@ class ReferenceViewerPanel(QWidget):
             ("YouTube", "https://www.youtube.com"),
             ("Wikipedia", "https://en.wikipedia.org"),
             ("Google", "https://www.google.com"),
-            ("Khan Academy", "https://www.khanacademy.org"),
         ]
+        
+        shortcut_style = """
+            QPushButton {
+                border: 1px solid #333333;
+                background: #242424;
+                color: #888888;
+                border-radius: 4px;
+                padding: 0px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                border: 1px solid #B48EAD;
+                color: #B48EAD;
+                background: rgba(180,142,173,0.1);
+            }
+        """
+        
+        # Home button
+        home_btn = QPushButton("Home")
+        home_btn.setFixedHeight(24)
+        home_btn.setCursor(Qt.PointingHandCursor)
+        home_btn.setStyleSheet(shortcut_style)
+        home_btn.clicked.connect(self._load_welcome_page)
+        shortcuts_layout.addWidget(home_btn)
+
         for label, url in shortcut_data:
             btn = QPushButton(label)
             btn.setFixedHeight(24)
             btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet("""
-                QPushButton {
-                    border: 1px solid #333333;
-                    background: #242424;
-                    color: #888888;
-                    border-radius: 4px;
-                    padding: 0px 8px;
-                    font-size: 10px;
-                }
-                QPushButton:hover {
-                    border: 1px solid #B48EAD;
-                    color: #B48EAD;
-                    background: rgba(180,142,173,0.1);
-                }
-            """)
+            btn.setStyleSheet(shortcut_style)
             btn.clicked.connect(lambda _, u=url: self._load_url(u))
             shortcuts_layout.addWidget(btn)
 
@@ -146,8 +156,17 @@ class ReferenceViewerPanel(QWidget):
         )
         self.web_view.page().setBackgroundColor(QColor("#121212"))
 
-        # ── Fix for modern SPAs (ChatGPT, etc.) ───────────────────────────────
+        # ── Fix for modern SPAs and Persistence ───────────────────────────────
         profile = self.web_view.page().profile()
+        
+        # Enable persistent storage (cookies, local storage for YouTube, etc.)
+        import os
+        from PySide6.QtCore import QStandardPaths
+        cache_path = os.path.join(QStandardPaths.writableLocation(QStandardPaths.AppLocalDataLocation), "Zstudy", "WebCache")
+        os.makedirs(cache_path, exist_ok=True)
+        profile.setPersistentStoragePath(cache_path)
+        profile.setPersistentCookiesPolicy(QWebEngineProfile.AllowPersistentCookies)
+        
         profile.setHttpUserAgent("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36")
         
         settings = self.web_view.settings()
@@ -160,8 +179,25 @@ class ReferenceViewerPanel(QWidget):
 
         layout.addWidget(self.web_view, stretch=1)
 
-        # Load a nice dark welcome page
-        self._load_welcome_page()
+    def save_state(self, settings):
+        settings.beginGroup("reference_viewer")
+        current_url = self.web_view.url().toString()
+        if current_url.startswith("http://localhost/"):
+            current_url = self.url_bar.text()
+        elif not current_url or current_url.startswith("data:"):
+            current_url = ""
+        settings.setValue("url", current_url)
+        settings.endGroup()
+
+    def restore_state(self, settings):
+        settings.beginGroup("reference_viewer")
+        url = settings.value("url", "")
+        settings.endGroup()
+        
+        if url:
+            self._load_url(url)
+        else:
+            self._load_welcome_page()
 
     def _load_welcome_page(self):
         html = """
@@ -225,15 +261,45 @@ class ReferenceViewerPanel(QWidget):
 
     def _load_url(self, raw: str):
         """Smart URL loader: handles YouTube, plain URLs, and search terms."""
-        # Detect YouTube and force embed to allow playback
-        import re
+        import re, urllib.parse
         yt_match = re.search(
-            r"(?:youtube\.com/watch\?v=|youtu\.be/)([A-Za-z0-9_\-]{11})", raw
+            r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_\-]{11})", raw
         )
         if yt_match:
             vid_id = yt_match.group(1)
-            url = f"https://www.youtube.com/embed/{vid_id}?autoplay=0&rel=0"
-        elif raw.startswith("http://") or raw.startswith("https://") or raw.startswith("file://"):
+            
+            # Parse query params to keep playlists or timestamps
+            parsed = urllib.parse.urlparse(raw)
+            qs = urllib.parse.parse_qs(parsed.query)
+            
+            display_url = f"https://www.youtube.com/watch?v={vid_id}"
+            embed_src = f"https://www.youtube.com/embed/{vid_id}?autoplay=0&rel=0"
+            
+            if 'list' in qs:
+                embed_src += f"&list={qs['list'][0]}"
+                display_url += f"&list={qs['list'][0]}"
+            if 't' in qs:
+                embed_src += f"&start={qs['t'][0].replace('s', '')}"
+                display_url += f"&t={qs['t'][0]}"
+            
+            # YouTube embeds throw Error 152 if framed by a youtube.com base URL.
+            # Use localhost as a safe, permitted origin.
+            html = f"""
+            <!DOCTYPE html>
+            <html style="margin:0;padding:0;width:100%;height:100%;overflow:hidden;">
+              <body style="margin:0;padding:0;width:100%;height:100%;background:#121212;">
+                <iframe style="width:100%;height:100%;border:none;" 
+                        src="{embed_src}" 
+                        allowfullscreen>
+                </iframe>
+              </body>
+            </html>
+            """
+            self.web_view.setHtml(html, QUrl("http://localhost/"))
+            self.url_bar.setText(display_url)
+            return
+            
+        if raw.startswith("http://") or raw.startswith("https://") or raw.startswith("file://"):
             url = raw
         elif os.path.exists(raw):
             # It's a local file path
@@ -252,10 +318,22 @@ class ReferenceViewerPanel(QWidget):
     def _on_url_changed(self, qurl: QUrl):
         """Sync URL bar when the page navigates — ignore internal welcome page URLs."""
         url_str = qurl.toString()
+        # Skip our fake base URL for YouTube
+        if url_str.startswith("http://localhost/"):
+            return
+            
         # Skip internal data: URLs (welcome page) and blank pages
         if url_str.startswith("data:") or url_str in ("about:blank", ""):
             self.url_bar.clear()
             return
+            
+        # Automatically convert any YouTube navigations into our clean full-screen embed
+        import re
+        if re.search(r"(?:youtube\.com/watch\?v=|youtu\.be/|youtube\.com/embed/)([A-Za-z0-9_\-]{11})", url_str):
+            from PySide6.QtCore import QTimer
+            QTimer.singleShot(0, lambda: self._load_url(url_str))
+            return
+            
         self.url_bar.setText(url_str)
 
     def _go_back(self):

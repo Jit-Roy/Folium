@@ -21,7 +21,7 @@ os.environ["QT_LOGGING_RULES"] = (
 from PySide6.QtWidgets import (
     QApplication, QMainWindow, QSplitter, QVBoxLayout, QHBoxLayout, QWidget
 )
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, QSettings, QTimer, QByteArray
 
 from ui.theme import MAIN_QSS
 from ui.activity_bar import ActivityBar
@@ -55,8 +55,8 @@ class MainWindow(QMainWindow):
         root_layout.addWidget(self.activity_bar)
 
         # ── Main Splitter (SidePanel | RightArea) ─────────────────────────
-        main_splitter = QSplitter(Qt.Horizontal)
-        root_layout.addWidget(main_splitter, stretch=1)
+        self.main_splitter = QSplitter(Qt.Horizontal)
+        root_layout.addWidget(self.main_splitter, stretch=1)
 
         # ── Side Panel (stacked pages) ────────────────────────────────────
         self.notes_panel   = NotesPanel()
@@ -68,7 +68,7 @@ class MainWindow(QMainWindow):
             "notes": self.notes_panel,
             "tags":  self.tags_panel,
         })
-        main_splitter.addWidget(self.side_panel)
+        self.main_splitter.addWidget(self.side_panel)
 
         # ── Right area: inner splitter ───────────────────────────
         right_container = QWidget()
@@ -100,11 +100,11 @@ class MainWindow(QMainWindow):
 
         right_layout.addWidget(self.inner_splitter)
 
-        main_splitter.addWidget(right_container)
-        main_splitter.setStretchFactor(0, 0)
-        main_splitter.setStretchFactor(1, 1)
-        main_splitter.setCollapsible(0, False)
-        main_splitter.setCollapsible(1, False)
+        self.main_splitter.addWidget(right_container)
+        self.main_splitter.setStretchFactor(0, 0)
+        self.main_splitter.setStretchFactor(1, 1)
+        self.main_splitter.setCollapsible(0, False)
+        self.main_splitter.setCollapsible(1, False)
 
         # ── Wire signals ──────────────────────────────────────────────────
         # Activity bar ↔ side panel switching
@@ -132,6 +132,50 @@ class MainWindow(QMainWindow):
 
         # ── Load data ──────────────────────────────────────────────────
         self.notes_panel.load_topics_from_db()
+
+        # Restore application state synchronously before the window is shown to prevent UI flicker
+        self.restore_state()
+
+    def save_state(self):
+        settings = QSettings()
+        settings.setValue("geometry", self.saveGeometry())
+        settings.setValue("windowState", self.saveState())
+        settings.setValue("main_splitter", self.main_splitter.saveState())
+        settings.setValue("inner_splitter", self.inner_splitter.saveState())
+        
+        # Save Activity bar
+        settings.setValue("active_panel", self.activity_bar._active)
+        
+        # Delegate saving to components
+        self.editor_tabs.save_state(settings)
+        self.knowledge_panel.save_state(settings)
+
+    def restore_state(self):
+        settings = QSettings()
+        
+        if settings.value("geometry"):
+            self.restoreGeometry(settings.value("geometry"))
+        if settings.value("windowState"):
+            self.restoreState(settings.value("windowState"))
+            
+        if settings.value("main_splitter"):
+            self.main_splitter.restoreState(settings.value("main_splitter"))
+        if settings.value("inner_splitter"):
+            self.inner_splitter.restoreState(settings.value("inner_splitter"))
+            
+        active_panel = settings.value("active_panel", "notes")
+        self.activity_bar.set_active(active_panel)
+        
+        # Delegate restoring to components
+        self.editor_tabs.restore_state(settings)
+        self.knowledge_panel.restore_state(settings)
+        
+        # Sync the panel-right button on the active editor
+        self._sync_panel_btn(self.knowledge_panel.isVisible())
+
+    def closeEvent(self, event):
+        self.save_state()
+        super().closeEvent(event)
 
     # ── Slots ──────────────────────────────────────────────────────────────
 
@@ -236,6 +280,8 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
+    app.setOrganizationName("Zstudy")
+    app.setApplicationName("StudyNotebook")
     init_db()
     app.setStyleSheet(MAIN_QSS)
     window = MainWindow()
