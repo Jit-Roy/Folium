@@ -185,6 +185,20 @@ class EditorTabs(QWidget):
         actions_layout.setContentsMargins(5, 0, 10, 0)
         actions_layout.setSpacing(6)
         
+        # Export Note icon
+        self.btn_export = QPushButton()
+        self.btn_export.setIcon(QIcon("assets/icons/export.svg"))
+        self.btn_export.setFixedSize(24, 24)
+        self.btn_export.setToolTip("Export Markdown")
+        self.btn_export.clicked.connect(self._export_current_topic)
+        
+        # Export HTML icon
+        self.btn_export_html = QPushButton()
+        self.btn_export_html.setIcon(QIcon("assets/icons/export_html.svg"))
+        self.btn_export_html.setFixedSize(24, 24)
+        self.btn_export_html.setToolTip("Export HTML (Preserves complex tables)")
+        self.btn_export_html.clicked.connect(self._export_html_current_topic)
+        
         # Pin Note icon
         self.btn_pin = QPushButton()
         self.btn_pin.setIcon(QIcon("assets/icons/pin.svg"))
@@ -199,7 +213,7 @@ class EditorTabs(QWidget):
         self.btn_lock.setToolTip("Lock / Read-Only Mode")
         self.btn_lock.clicked.connect(self._toggle_lock_current)
         
-        for btn in (self.btn_pin, self.btn_lock):
+        for btn in (self.btn_export, self.btn_export_html, self.btn_pin, self.btn_lock):
             btn.setStyleSheet("""
                 QPushButton { border: none; background: transparent; border-radius: 4px; }
                 QPushButton:hover { background: #2a2a2a; }
@@ -441,6 +455,16 @@ class EditorTabs(QWidget):
                 editor.load_topic(topic, section)
 
     # ── Internal Callbacks ──────────────────────────────────────────────────
+    
+    def _export_current_topic(self):
+        editor = self.get_current_editor()
+        if editor:
+            editor.export_markdown()
+
+    def _export_html_current_topic(self):
+        editor = self.get_current_editor()
+        if editor:
+            editor.export_html()
 
     def _toggle_pin_current(self):
         editor = self.get_current_editor()

@@ -83,8 +83,8 @@ class NoteEditor(QWidget):
             btn.clicked.connect(partial(self.apply_format, icon))
             toolbar.addWidget(btn)
             self.format_btns[icon] = btn
-            
         toolbar.addStretch()
+        
         self.panel_right_btn = QPushButton()
         self.panel_right_btn.setIcon(QIcon("assets/icons/panel-right.svg"))
         self.panel_right_btn.setFixedSize(28, 28)
@@ -352,24 +352,30 @@ class NoteEditor(QWidget):
                     
             is_active = self.format_btns[format_type].isChecked()
             header_char_format = QTextCharFormat()
+            block_format = cursor.blockFormat()
             
             if not is_active:
                 header_char_format.setFontPointSize(11)
                 header_char_format.setFontWeight(QFont.Normal)
+                block_format.setHeadingLevel(0)
             else:
                 if format_type == "h1":
                     header_char_format.setFontPointSize(24)
                     header_char_format.setFontWeight(QFont.Normal)
+                    block_format.setHeadingLevel(1)
                 elif format_type == "h2":
                     header_char_format.setFontPointSize(20)
                     header_char_format.setFontWeight(QFont.Normal)
+                    block_format.setHeadingLevel(2)
                 elif format_type == "h3":
                     header_char_format.setFontPointSize(16)
                     header_char_format.setFontWeight(QFont.Normal)
+                    block_format.setHeadingLevel(3)
                 
             pos = cursor.position()
             cursor.select(QTextCursor.BlockUnderCursor)
             cursor.mergeCharFormat(header_char_format)
+            cursor.setBlockFormat(block_format)
             cursor.setPosition(pos)
             
             self.editor.setTextCursor(cursor)
@@ -397,10 +403,25 @@ class NoteEditor(QWidget):
         elif format_type == "image":
             file_name, _ = QFileDialog.getOpenFileName(self, "Insert Image", "", "Images (*.png *.jpg *.jpeg *.gif *.svg)")
             if file_name:
-                url = f"file:///{file_name.replace(chr(92), '/')}"
+                import os
+                import uuid
+                import shutil
+                
+                # Create uploads directory
+                uploads_dir = os.path.join("assets", "uploads")
+                os.makedirs(uploads_dir, exist_ok=True)
+                
+                # Generate a unique secure filename and copy it over
+                ext = os.path.splitext(file_name)[1]
+                unique_filename = f"{uuid.uuid4().hex}{ext}"
+                dest_path = os.path.join(uploads_dir, unique_filename)
+                shutil.copy2(file_name, dest_path)
+                
+                abs_dest = os.path.abspath(dest_path).replace(chr(92), '/')
+                url = f"file:///{abs_dest}"
                 
                 from PySide6.QtGui import QImage
-                img = QImage(file_name)
+                img = QImage(abs_dest)
                 w = img.width()
                 h = img.height()
                 
@@ -547,6 +568,63 @@ class NoteEditor(QWidget):
         
         self.on_text_changed()
         self.status_label.setText("Loaded")
+
+    def export_markdown(self):
+        from PySide6.QtWidgets import QFileDialog
+        if not self.current_topic_id:
+            return
+            
+        # Clean title for filename
+        clean_title = "".join(c for c in self.title_label.text() if c.isalnum() or c in " -_").strip()
+        default_name = f"{clean_title}.md"
+        
+        file_name, _ = QFileDialog.getSaveFileName(self, "Export to Markdown", default_name, "Markdown Files (*.md)")
+        if file_name:
+            html_content = self.editor.toHtml()
+            try:
+                import markdownify
+                import re
+                
+                # Pre-process Qt's inline CSS spans into standard HTML tags for markdownify
+                html_content = re.sub(r'(<span[^>]*?font-weight:\s*[6-9]\d{2}[^>]*?>)(.*?)(</span>)', r'\1<strong>\2</strong>\3', html_content)
+                html_content = re.sub(r'(<span[^>]*?font-weight:\s*bold[^>]*?>)(.*?)(</span>)', r'\1<strong>\2</strong>\3', html_content)
+                html_content = re.sub(r'(<span[^>]*?font-style:\s*italic[^>]*?>)(.*?)(</span>)', r'\1<em>\2</em>\3', html_content)
+                
+                # Convert old fake headings (font-size spans) into actual heading tags
+                html_content = re.sub(r'<p[^>]*>(<span[^>]*?font-size:\s*24pt[^>]*?>)(.*?)(</span>)</p>', r'<h1>\2</h1>', html_content)
+                html_content = re.sub(r'<p[^>]*>(<span[^>]*?font-size:\s*20pt[^>]*?>)(.*?)(</span>)</p>', r'<h2>\2</h2>', html_content)
+                html_content = re.sub(r'<p[^>]*>(<span[^>]*?font-size:\s*16pt[^>]*?>)(.*?)(</span>)</p>', r'<h3>\2</h3>', html_content)
+                
+                md_content = markdownify.markdownify(html_content, heading_style="ATX", default_title=True)
+            except ImportError:
+                from PySide6.QtGui import QTextDocument
+                import re
+                
+                md_content = self.editor.document().toMarkdown(QTextDocument.MarkdownDialectGitHub)
+                
+                # Qt's toMarkdown often leaves spaces inside bold/italic tags, breaking them.
+                md_content = re.sub(r'\*\*(.*?)\s+\*\*', r'**\1** ', md_content)
+                md_content = re.sub(r'(?<!\*)\*(?!\*)(.*?)\s+\*', r'*\1* ', md_content)
+                md_content = re.sub(r'_(.*?)\s+_', r'_\1_ ', md_content)
+
+            with open(file_name, "w", encoding="utf-8") as f:
+                f.write(md_content)
+            self.status_label.setText("Exported successfully")
+
+    def export_html(self):
+        from PySide6.QtWidgets import QFileDialog
+        if not self.current_topic_id:
+            return
+            
+        clean_title = "".join(c for c in self.title_label.text() if c.isalnum() or c in " -_").strip()
+        default_name = f"{clean_title}.html"
+        
+        file_name, _ = QFileDialog.getSaveFileName(self, "Export to HTML", default_name, "HTML Files (*.html)")
+        if file_name:
+            html_content = self.editor.toHtml()
+            with open(file_name, "w", encoding="utf-8") as f:
+                f.write(html_content)
+            self.status_label.setText("Exported HTML successfully")
 
     def _clear_tags(self):
         # Remove all widgets from tags_layout except the add button and stretch

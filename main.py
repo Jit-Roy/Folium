@@ -231,7 +231,6 @@ class MainWindow(QMainWindow):
                 self.knowledge_panel.set_current_topic(topic.id)
             
             # Load panels
-            self.knowledge_panel.load_references(topic)
             self.knowledge_panel.set_active_editor(self.editor_tabs.get_current_editor())
         else:
             self.notes_panel.clear_selection()

@@ -193,9 +193,7 @@ class KnowledgePanel(QWidget):
         # Delegate to children
         self.reference_panel.restore_state(settings)
 
-    def load_references(self, topic):
-        pass
-        
+
     def set_active_editor(self, editor):
         self.outline_panel.set_active_editor(editor)
         
