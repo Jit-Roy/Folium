@@ -65,6 +65,11 @@ class TopicDelegate(QStyledItemDelegate):
             self._current_elide_width = None
             self._current_font_metrics = None
 
+        if not (option.state & QStyle.State_Selected):
+            from PySide6.QtGui import QPalette, QColor
+            option.palette.setColor(QPalette.Text, QColor("#FFFFFF"))
+            option.palette.setColor(QPalette.WindowText, QColor("#FFFFFF"))
+            
         super().paint(painter, option, index)
 
         self._current_elide_width = None

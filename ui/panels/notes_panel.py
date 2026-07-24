@@ -58,7 +58,8 @@ class NotesPanel(QWidget):
                 font-size: 11px;
             }
         """)
-        self.search_box.addAction(QIcon("assets/icons/search.svg"), QLineEdit.LeadingPosition)
+        search_pixmap = QIcon("assets/icons/search.svg").pixmap(QSize(16, 16))
+        self.search_box.addAction(QIcon(search_pixmap), QLineEdit.LeadingPosition)
         self.search_box.textChanged.connect(self._on_search_text_changed)
         header_layout.addWidget(self.search_box)
 
@@ -89,7 +90,7 @@ class NotesPanel(QWidget):
         for icon_file, tip, slot in action_specs:
             btn = QPushButton()
             btn.setIcon(QIcon(f"assets/icons/{icon_file}"))
-            btn.setIconSize(QSize(18, 18))
+            btn.setIconSize(QSize(16, 16))
             btn.setFixedSize(26, 26)
             btn.setToolTip(tip)
             btn.setStyleSheet(_ACTION_BTN_STYLE)
@@ -478,7 +479,7 @@ class NotesPanel(QWidget):
                 border: 1px solid #454545;
                 border-radius: 6px;
                 padding: 4px 0;
-                color: #cccccc;
+                color: #FFFFFF;
                 font-size: 13px;
             }
             QMenu::item {

@@ -68,7 +68,7 @@ class SectionMenu(QWidget):
             
             # Icon
             icon_label = QLabel()
-            icon_pixmap = QIcon(f"assets/icons/{icon}.svg").pixmap(QSize(20, 20))
+            icon_pixmap = QIcon(f"assets/icons/{icon}.svg").pixmap(QSize(16, 16))
             icon_label.setPixmap(icon_pixmap)
             item_layout.addWidget(icon_label)
             

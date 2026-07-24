@@ -59,7 +59,7 @@ class ReferenceViewerPanel(QWidget):
                 border: 1px solid #333333;
                 border-radius: 5px;
                 padding: 2px 8px;
-                color: #cccccc;
+                color: #FFFFFF;
                 font-size: 12px;
             }
             QLineEdit:focus {
@@ -113,7 +113,7 @@ class ReferenceViewerPanel(QWidget):
             QPushButton {
                 border: 1px solid #333333;
                 background: #242424;
-                color: #888888;
+                color: #FFFFFF;
                 border-radius: 4px;
                 padding: 0px 8px;
                 font-size: 10px;
@@ -218,7 +218,7 @@ class ReferenceViewerPanel(QWidget):
                 text-align: center;
             }
             .icon { font-size: 48px; margin-bottom: 16px; }
-            h2 { color: #888888; font-weight: 400; margin-bottom: 8px; }
+            h2 { color: #FFFFFF; font-weight: 400; margin-bottom: 8px; }
             p { font-size: 13px; line-height: 1.6; max-width: 280px; }
             .hint {
                 margin-top: 20px;

@@ -20,7 +20,7 @@ class TaskItemWidget(QWidget):
         self.checkbox = QCheckBox(content)
         self.checkbox.setChecked(is_completed)
         self.checkbox.setStyleSheet("""
-            QCheckBox { color: #cccccc; font-size: 14px; }
+            QCheckBox { color: #FFFFFF; font-size: 14px; }
             QCheckBox::indicator { width: 16px; height: 16px; border-radius: 4px; border: 1px solid #444; background: #242424; }
             QCheckBox::indicator:checked { 
                 background: #242424; 

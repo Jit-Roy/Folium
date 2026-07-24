@@ -30,7 +30,7 @@ class TopBar(QWidget):
 
         # Breadcrumbs
         self.breadcrumb_label = QLabel("")
-        self.breadcrumb_label.setStyleSheet("color: #E0E0E0; font-size: 13px; border: none;")
+        self.breadcrumb_label.setStyleSheet("color: #FFFFFF; font-size: 13px; border: none;")
         layout.addWidget(self.breadcrumb_label)
         
         layout.addStretch()

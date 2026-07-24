@@ -101,7 +101,7 @@ class EditorTabs(QWidget):
         self._tab_bar.setStyleSheet("""
             QTabBar::tab {
                 background: #181818;
-                color: #888888;
+                color: #FFFFFF;
                 padding: 8px 8px 8px 12px;
                 border: none;
                 border-right: 1px solid #2a2a2a;
@@ -112,7 +112,7 @@ class EditorTabs(QWidget):
             }
             QTabBar::tab:hover {
                 background: #1f1f1f;
-                color: #cccccc;
+                color: #FFFFFF;
             }
             QTabBar::tab:selected {
                 background: #2D2036;
@@ -189,6 +189,7 @@ class EditorTabs(QWidget):
         self.btn_export = QPushButton()
         self.btn_export.setIcon(QIcon("assets/icons/export.svg"))
         self.btn_export.setFixedSize(24, 24)
+        self.btn_export.setIconSize(QSize(16, 16))
         self.btn_export.setToolTip("Export Markdown")
         self.btn_export.clicked.connect(self._export_current_topic)
         
@@ -196,6 +197,7 @@ class EditorTabs(QWidget):
         self.btn_export_html = QPushButton()
         self.btn_export_html.setIcon(QIcon("assets/icons/export_html.svg"))
         self.btn_export_html.setFixedSize(24, 24)
+        self.btn_export_html.setIconSize(QSize(16, 16))
         self.btn_export_html.setToolTip("Export HTML (Preserves complex tables)")
         self.btn_export_html.clicked.connect(self._export_html_current_topic)
         
@@ -203,20 +205,22 @@ class EditorTabs(QWidget):
         self.btn_pin = QPushButton()
         self.btn_pin.setIcon(QIcon("assets/icons/pin.svg"))
         self.btn_pin.setFixedSize(24, 24)
-        self.btn_pin.setToolTip("Pin Note")
+        self.btn_pin.setIconSize(QSize(16, 16))
+        self.btn_pin.setToolTip("Pin / Keep Open")
         self.btn_pin.clicked.connect(self._toggle_pin_current)
         
         # Lock / Read-Only Mode icon
         self.btn_lock = QPushButton()
-        self.btn_lock.setIcon(QIcon("assets/icons/unlock.svg"))
+        self.btn_lock.setIcon(QIcon("assets/icons/lock.svg"))
         self.btn_lock.setFixedSize(24, 24)
+        self.btn_lock.setIconSize(QSize(16, 16))
         self.btn_lock.setToolTip("Lock / Read-Only Mode")
         self.btn_lock.clicked.connect(self._toggle_lock_current)
         
         for btn in (self.btn_export, self.btn_export_html, self.btn_pin, self.btn_lock):
             btn.setStyleSheet("""
                 QPushButton { border: none; background: transparent; border-radius: 4px; }
-                QPushButton:hover { background: #2a2a2a; }
+                QPushButton:hover { background: rgba(255, 255, 255, 0.1); }
             """)
             actions_layout.addWidget(btn)
             

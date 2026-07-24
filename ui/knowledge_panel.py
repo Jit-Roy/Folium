@@ -154,7 +154,7 @@ class KnowledgePanel(QWidget):
                 letter-spacing: 1px;
                 padding: 0 14px;
             }
-            QPushButton:hover { color: #888888; }
+            QPushButton:hover { color: #FFFFFF; }
         """
 
     # ── Public API ─────────────────────────────────────────────────────────────

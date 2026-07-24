@@ -82,7 +82,7 @@ class ActivityBar(QWidget):
         for icon_file, key, tip in _PANELS:
             btn = QPushButton()
             btn.setIcon(QIcon(f"assets/icons/{icon_file}"))
-            btn.setIconSize(QSize(24, 24))
+            btn.setIconSize(QSize(16, 16))
             btn.setFixedSize(48, 48)
             btn.setToolTip(tip)
             btn.setCheckable(True)
@@ -96,7 +96,7 @@ class ActivityBar(QWidget):
         # ── Settings button anchored at bottom ─────────────────────────────
         self.settings_btn = QPushButton()
         self.settings_btn.setIcon(QIcon("assets/icons/act-settings.svg"))
-        self.settings_btn.setIconSize(QSize(22, 22))
+        self.settings_btn.setIconSize(QSize(16, 16))
         self.settings_btn.setFixedSize(48, 48)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.setStyleSheet(_SETTINGS_STYLE)

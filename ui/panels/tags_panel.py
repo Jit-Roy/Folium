@@ -11,13 +11,13 @@ class TagRowWidget(QWidget):
         layout.setContentsMargins(8, 4, 8, 4)
         
         lbl = QLabel(f"#{tag_name}")
-        lbl.setStyleSheet("color: #cccccc; font-size: 13px; background: transparent;")
+        lbl.setStyleSheet("color: #FFFFFF; font-size: 13px; background: transparent;")
         
         badge = QLabel(str(count))
         badge.setAlignment(Qt.AlignCenter)
         badge.setStyleSheet("""
             background-color: #2a2a2a;
-            color: #cccccc;
+            color: #FFFFFF;
             border-radius: 10px;
             font-size: 10px;
             font-weight: bold;
@@ -44,11 +44,11 @@ class AccordionHeader(QFrame):
         layout.setSpacing(6)
         
         self.icon_lbl = QLabel("▸")
-        self.icon_lbl.setStyleSheet("color: #cccccc; font-weight: bold; font-family: monospace; font-size: 14px; background: transparent; border: none;")
+        self.icon_lbl.setStyleSheet("color: #FFFFFF; font-weight: bold; font-family: monospace; font-size: 14px; background: transparent; border: none;")
         self.icon_lbl.setFixedWidth(18)
         
         self.title_lbl = QLabel(title)
-        self.title_lbl.setStyleSheet("color: #cccccc; font-size: 16px; font-weight: bold; background: transparent; border: none;")
+        self.title_lbl.setStyleSheet("color: #FFFFFF; font-size: 16px; font-weight: bold; background: transparent; border: none;")
         
         layout.addWidget(self.icon_lbl)
         layout.addWidget(self.title_lbl)
@@ -94,7 +94,7 @@ class TagsPanel(QWidget):
         h_layout.setSpacing(10)
 
         title = QLabel("TAGS")
-        title.setStyleSheet("font-size:11px; font-weight:700; color:#cccccc;")
+        title.setStyleSheet("font-size:11px; font-weight:700; color:#FFFFFF;")
         h_layout.addWidget(title)
         h_layout.addStretch()
         
@@ -111,7 +111,7 @@ class TagsPanel(QWidget):
         tags_empty_layout = QVBoxLayout(self.tags_empty_state)
         tags_empty_text = QLabel("No tags found.\n\nCreate a tag in the editor to see it here.")
         tags_empty_text.setWordWrap(True)
-        tags_empty_text.setStyleSheet("color: #888888; font-size: 12px; padding: 20px;")
+        tags_empty_text.setStyleSheet("color: #FFFFFF; font-size: 12px; padding: 20px;")
         tags_empty_text.setAlignment(Qt.AlignCenter)
         tags_empty_layout.addStretch()
         tags_empty_layout.addWidget(tags_empty_text)
@@ -146,7 +146,7 @@ class TagsPanel(QWidget):
         empty_layout.setContentsMargins(0, 0, 0, 0)
         empty_text = QLabel("Select a tag above to see its topics.")
         empty_text.setWordWrap(True)
-        empty_text.setStyleSheet("color: #888888; font-size: 12px; padding: 10px 20px;")
+        empty_text.setStyleSheet("color: #FFFFFF; font-size: 12px; padding: 10px 20px;")
         empty_text.setAlignment(Qt.AlignTop | Qt.AlignLeft)
         empty_layout.addWidget(empty_text)
         empty_layout.addStretch()
@@ -155,7 +155,7 @@ class TagsPanel(QWidget):
         self.topics_list = QListWidget()
         self.topics_list.setStyleSheet("""
             QListWidget { background: transparent; border: none; outline: none; padding: 0 8px; }
-            QListWidget::item { color: #cccccc; padding: 8px; border-radius: 4px; margin-bottom: 2px; }
+            QListWidget::item { color: #FFFFFF; padding: 8px; border-radius: 4px; margin-bottom: 2px; }
             QListWidget::item:hover { background-color: #2a2a2a; }
             QListWidget::item:selected { background-color: #242424; color: #ffffff; }
         """)

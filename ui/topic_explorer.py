@@ -29,7 +29,7 @@ class TopicExplorer(QWidget):
         menu_btn.setStyleSheet("border: none; background: transparent;")
         
         book_icon = QLabel()
-        book_icon.setPixmap(QIcon("assets/icons/book.svg").pixmap(QSize(20, 20)))
+        book_icon.setPixmap(QIcon("assets/icons/book.svg").pixmap(QSize(16, 16)))
         
         title_label = QLabel("Study Notebook")
         title_label.setStyleSheet("font-size: 16px; font-weight: bold; color: #FFFFFF;")
@@ -63,7 +63,7 @@ class TopicExplorer(QWidget):
         self.fixed_view.setMaximumHeight(150)
         self.fixed_view.setStyleSheet("""
             QTreeView { background: transparent; border: none; outline: none; }
-            QTreeView::item { padding: 4px; color: #CCCCCC; }
+            QTreeView::item { padding: 4px; color: #FFFFFF; }
             QTreeView::item:hover { background: #242424; border-radius: 4px; }
             QTreeView::item:selected { background: #2D2036; color: #B48EAD; border-radius: 4px; }
         """)
@@ -80,7 +80,7 @@ class TopicExplorer(QWidget):
         topics_header = QHBoxLayout()
         topics_header.setContentsMargins(10, 10, 10, 0)
         topics_label = QLabel("TOPICS")
-        topics_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #888888; letter-spacing: 1px;")
+        topics_label.setStyleSheet("font-size: 11px; font-weight: bold; color: #FFFFFF; letter-spacing: 1px;")
         
         btn_style = """
             QPushButton { border: none; background: transparent; border-radius: 4px; }
@@ -132,7 +132,7 @@ class TopicExplorer(QWidget):
         self.topic_view.setSelectionBehavior(QTreeView.SelectRows)
         self.topic_view.setStyleSheet("""
             QTreeView { background: transparent; border: none; outline: none; show-decoration-selected: 1; }
-            QTreeView::item { padding: 4px; color: #CCCCCC; margin: 0px; border: none; border-radius: 0px; }
+            QTreeView::item { padding: 4px; color: #FFFFFF; margin: 0px; border: none; border-radius: 0px; }
             QTreeView::item:selected { background: #2D2036; color: #B48EAD; }
             
             QTreeView::branch { background: #121212; border-image: none; image: none; }

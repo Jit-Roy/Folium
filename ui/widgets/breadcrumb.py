@@ -20,11 +20,11 @@ class _BreadcrumbSegment(QLabel):
     def _apply_style(self, hovered: bool):
         if self._is_active:
             self.setStyleSheet(
-                "font-size: 12px; font-weight: bold; color: #E8E8E8;"
+                "font-size: 12px; font-weight: bold; color: #FFFFFF;"
                 " background: transparent; border: none;"
             )
         else:
-            color = "#AAAAAA" if hovered else "#666666"
+            color = "#FFFFFF" if hovered else "#666666"
             self.setStyleSheet(
                 f"font-size: 11px; font-weight: normal; color: {color};"
                 " background: transparent; border: none;"

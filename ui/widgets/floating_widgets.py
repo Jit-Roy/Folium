@@ -17,7 +17,7 @@ class FloatingInput(QWidget):
             }
             QLineEdit {
                 background: transparent;
-                color: #E0E0E0;
+                color: #FFFFFF;
                 border: none;
                 padding: 8px;
                 font-size: 13px;
@@ -57,7 +57,7 @@ class FloatingTableGrid(QWidget):
         self.setWindowFlags(Qt.Popup | Qt.FramelessWindowHint | Qt.NoDropShadowWindowHint)
         self.setStyleSheet("""
             QWidget { background-color: #2D2036; border: 1px solid #4D305A; border-radius: 6px; }
-            QLabel { color: #888888; font-size: 11px; padding: 4px; border: none; }
+            QLabel { color: #FFFFFF; font-size: 11px; padding: 4px; border: none; }
             QPushButton { background: #1E1E1E; border: 1px solid #444444; }
         """)
         

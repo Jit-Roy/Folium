@@ -32,12 +32,12 @@ class TrashPanel(QWidget):
         h_layout.setSpacing(4)
 
         chevron = QLabel("›")
-        chevron.setStyleSheet("color:#888; font-size:14px;")
+        chevron.setStyleSheet("color:#FFFFFF; font-size:14px;")
         h_layout.addWidget(chevron)
 
         title = QLabel("TRASH")
         title.setStyleSheet(
-            "font-size:11px; font-weight:700; color:#cccccc; padding-left:4px;"
+            "font-size:11px; font-weight:700; color:#FFFFFF; padding-left:4px;"
         )
         h_layout.addWidget(title)
         h_layout.addStretch()
@@ -49,7 +49,7 @@ class TrashPanel(QWidget):
             QPushButton {
                 border: 1px solid #555;
                 background: transparent;
-                color: #888;
+                color: #FFFFFF;
                 font-size: 11px;
                 border-radius: 3px;
                 padding: 2px 4px;
@@ -74,7 +74,7 @@ class TrashPanel(QWidget):
                 background: transparent;
                 border: none;
                 outline: none;
-                color: #888888;
+                color: #FFFFFF;
                 font-size: 13px;
                 padding: 4px 0;
             }
@@ -118,14 +118,14 @@ class TrashPanel(QWidget):
             row.addWidget(icon_lbl)
 
             name_lbl = QLabel(topic.name)
-            name_lbl.setStyleSheet("color:#888888; font-size:13px;")
+            name_lbl.setStyleSheet("color:#FFFFFF; font-size:13px;")
             row.addWidget(name_lbl)
             row.addStretch()
 
             restore_btn = QPushButton("Restore")
             restore_btn.setFixedSize(56, 24)
             restore_btn.setStyleSheet("""
-                QPushButton { border:1px solid #555; background:transparent; color:#888; font-size:11px; border-radius:3px; padding: 2px 4px; }
+                QPushButton { border:1px solid #555; background:transparent; color:#FFFFFF; font-size:11px; border-radius:3px; padding: 2px 4px; }
                 QPushButton:hover { background:rgba(80,180,80,0.15); color:#7dbb7d; border-color:#7dbb7d; }
             """)
             restore_btn.clicked.connect(lambda _, tid=topic.id: self.restore_topic(tid))

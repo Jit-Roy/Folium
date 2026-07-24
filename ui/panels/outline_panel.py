@@ -21,7 +21,7 @@ class OutlineItemWidget(QWidget):
         
         self.text_label = QLabel(text)
         self.text_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
-        self.text_label.setStyleSheet("color: #cccccc; font-size: 14px;")
+        self.text_label.setStyleSheet("color: #FFFFFF; font-size: 14px;")
         
         layout.addWidget(self.badge_label)
         layout.addWidget(self.text_label, stretch=1)
@@ -50,7 +50,7 @@ class OutlinePanel(QWidget):
                 outline: none;
             }
             QListWidget::item { 
-                color: #cccccc;
+                color: #FFFFFF;
                 border-radius: 4px;
             }
             QListWidget::item:hover { background: #1a1a1a; color: #FFFFFF; }

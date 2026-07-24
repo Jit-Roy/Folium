@@ -33,12 +33,12 @@ class DailyNotesPanel(QWidget):
         header_layout.setSpacing(4)
 
         chevron = QLabel("›")
-        chevron.setStyleSheet("color:#888; font-size:14px;")
+        chevron.setStyleSheet("color:#FFFFFF; font-size:14px;")
         header_layout.addWidget(chevron)
 
         title = QLabel("DAILY NOTES")
         title.setStyleSheet(
-            "font-size:11px; font-weight:700; color:#cccccc; padding-left:4px;"
+            "font-size:11px; font-weight:700; color:#FFFFFF; padding-left:4px;"
         )
         header_layout.addWidget(title)
         header_layout.addStretch()
@@ -69,7 +69,7 @@ class DailyNotesPanel(QWidget):
                 background: transparent;
                 border: none;
                 outline: none;
-                color: #cccccc;
+                color: #FFFFFF;
                 font-size: 13px;
                 padding: 4px 0;
             }

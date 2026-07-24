@@ -1,16 +1,16 @@
 MAIN_QSS = """
 QMainWindow {
     background-color: #121212;
-    color: #E0E0E0;
+    color: #FFFFFF;
 }
 * {
     outline: none;
 }
 QWidget {
     background-color: #121212;
-    color: #E0E0E0;
+    color: #FFFFFF;
     font-family: "Inter", "Segoe UI", sans-serif;
-    font-size: 14px;
+    font-size: 13px;
 }
 QSplitter::handle {
     background-color: #2D2D2D;
@@ -34,10 +34,10 @@ QTreeView::item:selected {
 }
 QTextEdit, QPlainTextEdit {
     background-color: #121212;
-    color: #E0E0E0;
+    color: #FFFFFF;
     border: none;
     padding: 40px;
-    font-size: 16px;
+    font-size: 14px;
     line-height: 1.6;
 }
 QLineEdit {
@@ -49,7 +49,7 @@ QLineEdit {
 }
 QPushButton {
     background-color: #1E1E1E;
-    color: #E0E0E0;
+    color: #FFFFFF;
     border: 1px solid #2D2D2D;
     border-radius: 6px;
     padding: 6px 12px;
@@ -58,7 +58,7 @@ QPushButton:hover {
     background-color: #2D2D2D;
 }
 QLabel {
-    color: #AAAAAA;
+    color: #FFFFFF;
 }
 QScrollBar:vertical {
     background: #121212;
@@ -94,7 +94,7 @@ QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
 }
 QToolTip {
     background: #252526;
-    color: #cccccc;
+    color: #FFFFFF;
     border: 1px solid #454545;
     border-radius: 4px;
     padding: 4px 8px;

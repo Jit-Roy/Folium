@@ -6,7 +6,7 @@ from PySide6.QtGui import (
     QIcon, QTextCursor, QTextCharFormat, QFont, 
     QTextBlockFormat, QTextListFormat, QTextImageFormat, QColor, QTextFormat
 )
-from PySide6.QtCore import QTimer, Qt, Signal
+from PySide6.QtCore import QTimer, Qt, Signal, QSize
 from functools import partial
 import os
 
@@ -72,14 +72,19 @@ class NoteEditor(QWidget):
         for icon in format_icons:
             btn = QPushButton()
             btn.setIcon(QIcon(f"assets/icons/{icon}.svg"))
-            btn.setFixedSize(28, 28)
             btn.setToolTip(tooltips.get(icon, icon))
+            btn.setFixedSize(24, 24)
+            btn.setIconSize(QSize(16, 16))
+            btn.setCursor(Qt.PointingHandCursor)
             btn.setCheckable(True)
+            
+            # Simple, subtle hover effect like VS Code
             btn.setStyleSheet("""
-                QPushButton { border: none; background: transparent; color: #888888; font-weight: bold; }
-                QPushButton:hover { background: #242424; border-radius: 4px; }
+                QPushButton { border: none; background: transparent; color: #FFFFFF; font-weight: bold; border-radius: 4px; }
+                QPushButton:hover { background: rgba(255, 255, 255, 0.1); }
                 QPushButton:checked { background: #2D2036; border-radius: 4px; }
             """)
+            
             btn.clicked.connect(partial(self.apply_format, icon))
             toolbar.addWidget(btn)
             self.format_btns[icon] = btn
@@ -87,13 +92,15 @@ class NoteEditor(QWidget):
         
         self.panel_right_btn = QPushButton()
         self.panel_right_btn.setIcon(QIcon("assets/icons/panel-right.svg"))
-        self.panel_right_btn.setFixedSize(28, 28)
-        self.panel_right_btn.setToolTip("Toggle Reference Viewer")
+        self.panel_right_btn.setFixedSize(24, 24)
+        self.panel_right_btn.setIconSize(QSize(16, 16))
+        self.panel_right_btn.setCursor(Qt.PointingHandCursor)
+        self.panel_right_btn.setToolTip("Toggle Right Panel")
         self.panel_right_btn.setCheckable(True)
         self.panel_right_btn.setChecked(True)  # panel starts open
         self.panel_right_btn.setStyleSheet("""
-            QPushButton { border: none; background: transparent; color: #888888; }
-            QPushButton:hover { background: #242424; border-radius: 4px; }
+            QPushButton { border: none; background: transparent; color: #FFFFFF; border-radius: 4px; }
+            QPushButton:hover { background: rgba(255, 255, 255, 0.1); }
             QPushButton:checked { background: #2D2036; border-radius: 4px; color: #B48EAD; }
         """)
         self.panel_right_btn.clicked.connect(self.toggle_reference_viewer.emit)
@@ -122,7 +129,7 @@ class NoteEditor(QWidget):
         self.tags_layout = QHBoxLayout()
         
         self.add_tag_btn = QPushButton("Add tag")
-        self.add_tag_btn.setStyleSheet("border: none; background: transparent; color: #888888; font-size: 11px;")
+        self.add_tag_btn.setStyleSheet("border: none; background: transparent; color: #FFFFFF; font-size: 11px;")
         
         from ui.widgets.floating_widgets import FloatingInput
         self.tag_input = FloatingInput(placeholder="Enter tag name...")
@@ -141,7 +148,7 @@ class NoteEditor(QWidget):
         self.editor.setStyleSheet("""
             QTextEdit {
                 background: transparent;
-                color: #E0E0E0;
+                color: #FFFFFF;
                 border: none;
                 padding-top: 20px;
             }
