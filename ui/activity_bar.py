@@ -6,18 +6,20 @@ from PySide6.QtGui import QIcon
 # (icon_file, panel_key, tooltip)
 _PANELS = [
     ("act-notes.svg",  "notes", "Explorer"),
-    ("act-tags.svg",   "tags",  "Tags"),
+    ("act-tasks.svg", "recent_tasks", "Tasks"),
+    ("act-habits.svg", "habits", "Habits"),
+    ("act-planner.svg", "planner", "Planner"),
+    ("act-journal.svg", "journal", "Diary"),
 ]
 
 # Active button: prominent left border + subtle purple fill
 _ACTIVE_STYLE = """
     QPushButton {
         border: none;
-        background: rgba(180, 142, 173, 0.14);
+        background: #2D2036;
         border-left: 2px solid #B48EAD;
         border-radius: 0px;
         padding: 0px;
-        opacity: 1;
     }
 """
 
@@ -29,11 +31,9 @@ _INACTIVE_STYLE = """
         border-left: 2px solid transparent;
         border-radius: 0px;
         padding: 0px;
-        opacity: 0.55;
     }
     QPushButton:hover {
         background: rgba(255,255,255,0.08);
-        opacity: 0.85;
     }
 """
 
@@ -82,7 +82,7 @@ class ActivityBar(QWidget):
         for icon_file, key, tip in _PANELS:
             btn = QPushButton()
             btn.setIcon(QIcon(f"assets/icons/{icon_file}"))
-            btn.setIconSize(QSize(16, 16))
+            btn.setIconSize(QSize(22, 22))
             btn.setFixedSize(48, 48)
             btn.setToolTip(tip)
             btn.setCheckable(True)
@@ -96,7 +96,7 @@ class ActivityBar(QWidget):
         # ── Settings button anchored at bottom ─────────────────────────────
         self.settings_btn = QPushButton()
         self.settings_btn.setIcon(QIcon("assets/icons/act-settings.svg"))
-        self.settings_btn.setIconSize(QSize(16, 16))
+        self.settings_btn.setIconSize(QSize(22, 22))
         self.settings_btn.setFixedSize(48, 48)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.setStyleSheet(_SETTINGS_STYLE)

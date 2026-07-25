@@ -1,5 +1,7 @@
 import sys
 import os
+import faulthandler
+faulthandler.enable()
 
 # ── Silence QtWebEngine / Chromium log spam and Enable GPU Accel ──────────────
 # Must be set before QApplication is created.
@@ -19,15 +21,24 @@ os.environ["QT_LOGGING_RULES"] = (
 # ─────────────────────────────────────────────────────────────────────────────
 
 from PySide6.QtWidgets import (
-    QApplication, QMainWindow, QSplitter, QVBoxLayout, QHBoxLayout, QWidget
+    QApplication, QMainWindow, QSplitter, QVBoxLayout, QHBoxLayout, QWidget,
+    QStackedWidget
 )
 from PySide6.QtCore import Qt, QSettings, QTimer, QByteArray
 
 from ui.theme import MAIN_QSS
 from ui.activity_bar import ActivityBar
 from ui.side_panel import SidePanel
+from ui.panels.context_sidebar import ContextSidebar
+from ui.panels.habits_sidebar import HabitsSidebar
+from ui.panels.planner_sidebar import PlannerSidebar
+from ui.panels.recent_tasks_panel import TasksPage, TasksService
+from ui.panels.tasks_sidebar import TasksSidebar
 from ui.panels.notes_panel import NotesPanel
-from ui.panels.tags_panel import TagsPanel
+from ui.panels.journal_panel import JournalPanel
+from ui.panels.journal_sidebar import JournalSidebar
+from ui.panels.habits_panel import HabitPage as HabitsPanel
+from ui.panels.planner_panel import PlannerPage as PlannerPanel
 from ui.editor_tabs import EditorTabs
 from ui.knowledge_panel import KnowledgePanel
 from core.database import init_db, get_session
@@ -58,23 +69,44 @@ class MainWindow(QMainWindow):
         self.main_splitter = QSplitter(Qt.Horizontal)
         root_layout.addWidget(self.main_splitter, stretch=1)
 
-        # ── Side Panel (stacked pages) ────────────────────────────────────
-        self.notes_panel   = NotesPanel()
-        self.tags_panel    = TagsPanel()
-        
-        self.tags_panel.topic_selected.connect(self.on_topic_selected)
+        # ── Central Panels (instantiated early for sidebars) ──
+        self.journal_panel = JournalPanel()
+        self.habits_panel  = HabitsPanel()
+        self.planner_panel = PlannerPanel()
+        self.recent_tasks_service = TasksService()
+        self.recent_tasks_panel = TasksPage(self.recent_tasks_service)
 
+        # ── Side Panel (stacked pages) ───────────────────────────
+        self.notes_panel   = NotesPanel()
+        
         self.side_panel = SidePanel({
             "notes": self.notes_panel,
-            "tags":  self.tags_panel,
+            "habits": HabitsSidebar(self.habits_panel.service),
+            "planner": PlannerSidebar(),
+            "journal": JournalSidebar(self.journal_panel.service),
+            "recent_tasks": TasksSidebar(self.recent_tasks_service),
         })
         self.main_splitter.addWidget(self.side_panel)
+
+        self.habits_panel.data_changed.connect(
+            self.side_panel.panels["habits"].refresh_stats
+        )
+
+        planner_sb = self.side_panel.panels["planner"]
+        planner_sb.date_selected.connect(self.planner_panel.jump_to_date)
+        planner_sb.navigate_weeks.connect(self.planner_panel._jump)
+        self.planner_panel.week_changed.connect(planner_sb.sync_calendar)
+        self.planner_panel.stats_updated.connect(planner_sb.update_stats)
 
         # ── Right area: inner splitter ───────────────────────────
         right_container = QWidget()
         right_layout = QVBoxLayout(right_container)
         right_layout.setContentsMargins(0, 0, 0, 0)
         right_layout.setSpacing(0)
+
+        # --- CENTRAL STACK ---
+        self.central_stack = QStackedWidget()
+        right_layout.addWidget(self.central_stack)
 
         # --- INNER SPLITTER (Editor & Knowledge Panel) ---
         self.inner_splitter = QSplitter(Qt.Horizontal)
@@ -83,14 +115,13 @@ class MainWindow(QMainWindow):
         )
 
         self.editor_tabs = EditorTabs()
-        self.editor_tabs.setMinimumWidth(750)  # Keep the canvas wide enough for all H1/H2 formatting buttons!
-        self.editor_tabs.tags_updated.connect(self.tags_panel.load_tags)
+        self.editor_tabs.setMinimumWidth(750)
+        self.editor_tabs.tags_updated.connect(self.notes_panel.load_tags)
         self.knowledge_panel = KnowledgePanel()
 
         self.inner_splitter.addWidget(self.editor_tabs)
         self.inner_splitter.addWidget(self.knowledge_panel)
 
-        # Give the Reference Viewer maximum expandable width on startup
         self.inner_splitter.setSizes([750, 100000])
         self.inner_splitter.setStretchFactor(0, 1)
         self.inner_splitter.setStretchFactor(1, 3)
@@ -98,9 +129,38 @@ class MainWindow(QMainWindow):
         self.inner_splitter.setCollapsible(1, False)
         self.inner_splitter.splitterMoved.connect(self._on_splitter_moved)
 
-        right_layout.addWidget(self.inner_splitter)
+        # --- ADD TO CENTRAL STACK ---
+        self.central_stack.addWidget(self.inner_splitter)
+        
+        self.central_stack.addWidget(self.journal_panel)
+        self.central_stack.addWidget(self.habits_panel)
+        self.central_stack.addWidget(self.planner_panel)
+        self.central_stack.addWidget(self.recent_tasks_panel)
+        
+        self.central_widgets_map = {
+            "notes": self.inner_splitter,
+            "journal": self.journal_panel,
+            "habits": self.habits_panel,
+            "planner": self.planner_panel,
+            "recent_tasks": self.recent_tasks_panel,
+        }
 
+
+        # Signal connections for Journal refactor
+        self.side_panel.panels["journal"].date_selected.connect(self.journal_panel.load_date)
+        self.side_panel.panels["journal"].date_selected.connect(self.side_panel.panels["journal"].set_selection)
+        self.side_panel.panels["journal"].delete_requested.connect(self.journal_panel.delete_date_entry)
+        self.journal_panel.date_changed.connect(self.side_panel.panels["journal"].set_selection)
+        self.journal_panel.data_changed.connect(self.side_panel.panels["journal"].refresh)
+        
+        # Signal connections for Tasks Sidebar
+        tasks_sidebar = self.side_panel.panels["recent_tasks"]
+        self.recent_tasks_panel.task_selected.connect(tasks_sidebar.load_task)
+        self.recent_tasks_panel.create_task_requested.connect(tasks_sidebar.prepare_new_task)
+        tasks_sidebar.data_changed.connect(self.recent_tasks_panel.refresh)
+        
         self.main_splitter.addWidget(right_container)
+
         self.main_splitter.setStretchFactor(0, 0)
         self.main_splitter.setStretchFactor(1, 1)
         self.main_splitter.setCollapsible(0, False)
@@ -132,6 +192,7 @@ class MainWindow(QMainWindow):
 
         # ── Load data ──────────────────────────────────────────────────
         self.notes_panel.load_topics_from_db()
+        self.notes_panel.load_tags()
 
         # Restore application state synchronously before the window is shown to prevent UI flicker
         self.restore_state()
@@ -140,8 +201,8 @@ class MainWindow(QMainWindow):
         settings = QSettings()
         settings.setValue("geometry", self.saveGeometry())
         settings.setValue("windowState", self.saveState())
-        settings.setValue("main_splitter", self.main_splitter.saveState())
-        settings.setValue("inner_splitter", self.inner_splitter.saveState())
+        settings.setValue("main_splitter_v2", self.main_splitter.saveState())
+        settings.setValue("inner_splitter_v2", self.inner_splitter.saveState())
         
         # Save Activity bar
         settings.setValue("active_panel", self.activity_bar._active)
@@ -158,10 +219,10 @@ class MainWindow(QMainWindow):
         if settings.value("windowState"):
             self.restoreState(settings.value("windowState"))
             
-        if settings.value("main_splitter"):
-            self.main_splitter.restoreState(settings.value("main_splitter"))
-        if settings.value("inner_splitter"):
-            self.inner_splitter.restoreState(settings.value("inner_splitter"))
+        if settings.value("main_splitter_v2"):
+            self.main_splitter.restoreState(settings.value("main_splitter_v2"))
+        if settings.value("inner_splitter_v2"):
+            self.inner_splitter.restoreState(settings.value("inner_splitter_v2"))
             
         active_panel = settings.value("active_panel", "notes")
         self.activity_bar.set_active(active_panel)
@@ -188,7 +249,23 @@ class MainWindow(QMainWindow):
             self._on_active_tab_changed(None)
 
     def _on_panel_requested(self, key: str):
+        # Route the sidebar to the corresponding context page
         self.side_panel.show_panel(key)
+        
+        # Make sure sidebar is visible when navigating
+        if not self.side_panel.isVisible():
+            self.side_panel.setVisible(True)
+            self.side_panel._is_visible = True
+
+        if key in self.central_widgets_map:
+            # Show the productivity tool
+            widget = self.central_widgets_map[key]
+            self.central_stack.setCurrentWidget(widget)
+            if hasattr(widget, "refresh"):
+                widget.refresh()
+        else:
+            # Show the editor/knowledge split view for Notes/Tags
+            self.central_stack.setCurrentWidget(self.inner_splitter)
 
     def _toggle_side_panel(self):
         self.side_panel.toggle_visibility()
@@ -236,10 +313,6 @@ class MainWindow(QMainWindow):
             self.notes_panel.clear_selection()
             self.knowledge_panel.set_current_topic(None)
             self.knowledge_panel.set_active_editor(None)
-
-    def on_section_selected(self, section_name: str):
-        if self.current_topic:
-            self.editor_tabs.change_section_for_current(section_name)
 
     def _hide_reference_panel(self):
         """Collapse the right panel."""

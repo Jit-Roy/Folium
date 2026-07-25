@@ -31,7 +31,7 @@ class SectionMenu(QWidget):
                 background-color: #242424;
             }
             QListWidget::item:selected {
-                background-color: rgba(180, 142, 173, 0.1);
+                background-color: #2D2036;
                 border-left: 3px solid #B48EAD;
             }
         """)

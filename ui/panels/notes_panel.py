@@ -1,10 +1,48 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QLineEdit, QPushButton, QFrame,
-    QTreeView, QAbstractItemView, QMenu, QStyleFactory
+    QTreeView, QAbstractItemView, QMenu, QStyleFactory, QSplitter, QListWidget, QListWidgetItem
 )
 from PySide6.QtGui import QStandardItemModel, QStandardItem, QIcon, QAction
 from PySide6.QtCore import Qt, Signal, QSize, QPoint
 from ui.delegates.topic_delegate import TopicDelegate
+
+
+class AccordionHeader(QFrame):
+    toggled = Signal(bool)
+    
+    def __init__(self, title, parent=None):
+        super().__init__(parent)
+        self.is_expanded = True
+        self.setFixedHeight(48)
+        self.setStyleSheet("""
+            QFrame { background: transparent; border-top: 1px solid #2a2a2a; }
+            QFrame:hover { background: rgba(255, 255, 255, 0.05); }
+        """)
+        layout = QHBoxLayout(self)
+        layout.setContentsMargins(10, 0, 10, 0)
+        layout.setSpacing(6)
+        
+        self.icon_lbl = QLabel("▾")
+        self.icon_lbl.setStyleSheet("color: #FFFFFF; font-weight: bold; font-family: monospace; font-size: 14px; background: transparent; border: none;")
+        self.icon_lbl.setFixedWidth(18)
+        
+        self.title_lbl = QLabel(title)
+        self.title_lbl.setStyleSheet("font-size: 11px; font-weight: bold; color: #FFFFFF; letter-spacing: 1px; background: transparent; border: none;")
+        
+        layout.addWidget(self.icon_lbl)
+        layout.addWidget(self.title_lbl)
+        layout.addStretch()
+        
+        self.setCursor(Qt.PointingHandCursor)
+        
+    def mousePressEvent(self, event):
+        self.set_expanded(not self.is_expanded)
+
+    def set_expanded(self, expanded: bool):
+        if self.is_expanded != expanded:
+            self.is_expanded = expanded
+            self.icon_lbl.setText("▾" if self.is_expanded else "▸")
+            self.toggled.emit(self.is_expanded)
 
 
 class NotesPanel(QWidget):
@@ -28,7 +66,15 @@ class NotesPanel(QWidget):
         self.setAttribute(Qt.WA_StyledBackground, True)
         self.setStyleSheet("background-color: #181818;")
         
-        layout = QVBoxLayout(self)
+        main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
+        
+        self.splitter = QSplitter(Qt.Vertical)
+        self.splitter.setStyleSheet("QSplitter::handle { background: transparent; height: 1px; }")
+        
+        top_widget = QWidget()
+        layout = QVBoxLayout(top_widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
@@ -211,9 +257,108 @@ class NotesPanel(QWidget):
         self.topic_view.mousePressEvent = custom_mouse_press
         
         layout.addWidget(self.topic_view)
+        
+        self.splitter.addWidget(top_widget)
+        
+        # ── Tags Cloud (Bottom Half, inside splitter) ──────────────────────
+        self.tags_widget = QWidget()
+        tags_layout = QVBoxLayout(self.tags_widget)
+        tags_layout.setContentsMargins(0, 0, 0, 0)
+        tags_layout.setSpacing(0)
+        
+        # Tags Cloud Header (inside the bottom pane)
+        self.tags_header = AccordionHeader("TAGS CLOUD")
+        self.tags_header.toggled.connect(self._toggle_tags_cloud)
+        tags_layout.addWidget(self.tags_header)
+        
+        self.tags_list = QListWidget()
+        self.tags_list.setStyleSheet("""
+            QListWidget { background: transparent; border: none; outline: none; }
+            QListWidget::item { border-radius: 4px; margin: 2px 8px; }
+            QListWidget::item:hover { background-color: #222222; }
+            QListWidget::item:selected { background-color: #1f1a24; border-left: 2px solid #b48ead; color: #b48ead; }
+        """)
+        self.tags_list.itemClicked.connect(self.on_tag_clicked)
+        tags_layout.addWidget(self.tags_list)
+        
+        self.splitter.addWidget(self.tags_widget)
+        self.splitter.setSizes([600, 300]) # Give more space to topics initially
+        
+        main_layout.addWidget(self.splitter)
+
+    def _toggle_tags_cloud(self, expanded: bool):
+        self.tags_list.setVisible(expanded)
+        if expanded:
+            self.tags_widget.setMaximumHeight(16777215)
+        else:
+            self.tags_widget.setMaximumHeight(48)
 
 
     # ── Public API ─────────────────────────────────────────────────────────
+
+    def load_tags(self):
+        from core.database import get_session
+        from core.models import Tag
+        
+        self.tags_list.clear()
+        session = get_session()
+        tags = session.query(Tag).order_by(Tag.name).all()
+        
+        for tag in tags:
+            count = len(tag.topics)
+            if count > 0:
+                item = QListWidgetItem()
+                item.setData(Qt.UserRole, tag.id)
+                
+                widget = QWidget()
+                layout = QHBoxLayout(widget)
+                layout.setContentsMargins(8, 4, 8, 4)
+                
+                lbl = QLabel(f"#{tag.name}")
+                lbl.setObjectName("tag_label")
+                lbl.setStyleSheet("color: #FFFFFF; font-size: 13px; background: transparent;")
+                
+                badge = QLabel(str(count))
+                badge.setAlignment(Qt.AlignCenter)
+                badge.setStyleSheet("background-color: #2a2a2a; color: #FFFFFF; border-radius: 10px; font-size: 10px; font-weight: bold;")
+                badge.setFixedSize(20, 20)
+                
+                layout.addWidget(lbl)
+                layout.addStretch()
+                layout.addWidget(badge)
+                
+                item.setSizeHint(widget.sizeHint())
+                self.tags_list.addItem(item)
+                self.tags_list.setItemWidget(item, widget)
+                
+        session.close()
+        self._update_tags_ui()
+
+    def _update_tags_ui(self):
+        active_id = getattr(self, 'active_tag_id', None)
+        for i in range(self.tags_list.count()):
+            item = self.tags_list.item(i)
+            widget = self.tags_list.itemWidget(item)
+            if not widget: continue
+            
+            lbl = widget.findChild(QLabel, "tag_label")
+            if not lbl: continue
+            
+            if item.data(Qt.UserRole) == active_id:
+                lbl.setStyleSheet("color: #b48ead; font-size: 13px; font-weight: bold; background: transparent;")
+            else:
+                lbl.setStyleSheet("color: #FFFFFF; font-size: 13px; background: transparent;")
+
+    def on_tag_clicked(self, item):
+        tag_id = item.data(Qt.UserRole)
+        if getattr(self, 'active_tag_id', None) == tag_id:
+            self.tags_list.clearSelection()
+            self.active_tag_id = None
+        else:
+            self.active_tag_id = tag_id
+            
+        self._update_tags_ui()
+        self.load_topics_from_db()
 
     def load_topics_from_db(self):
         try:
@@ -249,20 +394,32 @@ class NotesPanel(QWidget):
 
         def add_node(parent_item, topic):
             if topic.id in visited:
-                return
+                return False
             visited.add(topic.id)
 
             item = QStandardItem(topic.name)
             item.setData(topic.id, Qt.UserRole)
             item.setEditable(True)
 
-            parent_item.appendRow(item)
-
+            has_matching_child = False
             for child in topic.children:
                 if not child.is_deleted:
-                    add_node(item, child)
+                    if add_node(item, child):
+                        has_matching_child = True
 
-            visited.discard(topic.id)
+            has_active_tag = False
+            if hasattr(self, 'active_tag_id') and self.active_tag_id:
+                has_active_tag = any(t.id == self.active_tag_id for t in topic.tags)
+            else:
+                has_active_tag = True
+                
+            if has_active_tag or has_matching_child:
+                parent_item.appendRow(item)
+                visited.discard(topic.id)
+                return True
+            else:
+                visited.discard(topic.id)
+                return False
 
         for root in root_topics:
             add_node(self.topic_model.invisibleRootItem(), root)

@@ -10,7 +10,7 @@ QWidget {
     background-color: #121212;
     color: #FFFFFF;
     font-family: "Inter", "Segoe UI", sans-serif;
-    font-size: 13px;
+    font-size: 10pt;
 }
 QSplitter::handle {
     background-color: #2D2D2D;
@@ -37,7 +37,7 @@ QTextEdit, QPlainTextEdit {
     color: #FFFFFF;
     border: none;
     padding: 40px;
-    font-size: 14px;
+    font-size: 11pt;
     line-height: 1.6;
 }
 QLineEdit {
@@ -98,6 +98,6 @@ QToolTip {
     border: 1px solid #454545;
     border-radius: 4px;
     padding: 4px 8px;
-    font-size: 12px;
+    font-size: 9pt;
 }
 """

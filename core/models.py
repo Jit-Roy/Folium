@@ -1,5 +1,6 @@
 from datetime import datetime
-from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Table, Boolean
+from enum import Enum
+from sqlalchemy import Column, Integer, String, Text, ForeignKey, DateTime, Table, Boolean, Date
 from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
@@ -111,3 +112,74 @@ class Task(Base):
     created_at = Column(DateTime, default=datetime.utcnow)
     
     topic = relationship("Topic")
+
+# ── Ported TrackerX Models ──────────────────────────────────────────────────
+
+class TaskStatus(str, Enum):
+    TODO = "todo"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    SKIPPED = "skipped"
+    OVERDUE = "overdue"
+
+class Habit(Base):
+    __tablename__ = 'habits'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+    created_date = Column(String(50))
+
+class HabitCompletion(Base):
+    __tablename__ = 'habit_completions'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    habit_id = Column(Integer, ForeignKey('habits.id'), nullable=False)
+    completion_date = Column(String(50), nullable=False)
+
+class PlannerTask(Base):
+    __tablename__ = 'planner_tasks'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+    status = Column(String(50), default="todo") # todo, in_progress, completed, skipped
+    due_date = Column(Date, nullable=True)
+    tracked_seconds = Column(Integer, default=0)
+
+class WeeklyPlan(Base):
+    __tablename__ = 'weekly_plans'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    week_start_date = Column(String(50), nullable=False)
+    created_date = Column(String(50))
+
+class WeeklyGoalEntry(Base):
+    __tablename__ = 'weekly_plan_entries'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    plan_id = Column(Integer, ForeignKey('weekly_plans.id'), nullable=False)
+    day_of_week = Column(Integer, nullable=False)
+    title = Column(String(255), nullable=False)
+    completed = Column(Boolean, default=False)
+
+class WeeklyPlanNote(Base):
+    __tablename__ = 'weekly_plan_notes'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    plan_id = Column(Integer, ForeignKey('weekly_plans.id'), nullable=False)
+    day_of_week = Column(Integer, nullable=False)
+    note = Column(Text, default="")
+
+class Course(Base):
+    __tablename__ = 'courses'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    title = Column(String(255), nullable=False)
+    description = Column(Text, default="")
+
+class CourseMilestone(Base):
+    __tablename__ = 'course_milestones'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    course_id = Column(Integer, ForeignKey('courses.id'), nullable=False)
+    title = Column(String(255), nullable=False)
+
+class JournalEntry(Base):
+    __tablename__ = 'journal_entries'
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    entry_date = Column(String(50), nullable=False, unique=True)
+    content = Column(Text, default="")

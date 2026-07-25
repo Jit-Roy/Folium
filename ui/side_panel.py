@@ -2,7 +2,7 @@ from PySide6.QtWidgets import QWidget, QVBoxLayout, QStackedWidget
 from PySide6.QtCore import Qt
 
 
-_PANEL_ORDER = ["notes", "tags"]
+_PANEL_ORDER = ["notes", "recent_tasks", "tags", "habits", "planner", "journal", "courses"]
 
 
 class SidePanel(QWidget):

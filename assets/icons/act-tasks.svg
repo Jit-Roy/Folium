@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="#FFFFFF" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+  <!-- Clipboard clip at top -->
+  <path d="M9 2h6a1 1 0 0 1 1 1v1a1 1 0 0 1-1 1H9a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1z"/>
+  <!-- Clipboard body -->
+  <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/>
+  <!-- Three task lines -->
+  <line x1="8" y1="11" x2="16" y2="11"/>
+  <line x1="8" y1="15" x2="16" y2="15"/>
+  <line x1="8" y1="19" x2="12" y2="19"/>
+</svg>
