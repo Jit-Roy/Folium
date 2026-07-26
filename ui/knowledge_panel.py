@@ -172,6 +172,9 @@ class KnowledgePanel(QWidget):
         # Save visibility of the panel
         settings.setValue("is_visible", self.isVisible())
         
+        # Save maximize state
+        settings.setValue("is_maximized", self.is_maximized)
+        
         settings.endGroup()
         
         # Delegate to children
@@ -187,6 +190,13 @@ class KnowledgePanel(QWidget):
         is_visible = settings.value("is_visible", True, type=bool)
         if not is_visible:
             self.hide()
+            
+        # Restore maximize state (the actual editor hide/show is handled by main.py after restore)
+        is_maximized = settings.value("is_maximized", False, type=bool)
+        if is_maximized:
+            self.is_maximized = True
+            self.maximize_btn.setIcon(QIcon("assets/icons/minimize.svg"))
+            self.maximize_btn.setToolTip("Restore panel")
         
         settings.endGroup()
         

@@ -630,8 +630,11 @@ class OverdueTasksSection(QWidget):
 
     # ── Collapse / expand ──────────────────────────────────────────────────
 
-    def _toggle_collapse(self):
-        self.collapsed = not self.collapsed
+    def _toggle_collapse(self, force: bool | None = None):
+        if force is not None:
+            self.collapsed = force
+        else:
+            self.collapsed = not self.collapsed
         if self.collapsed:
             self.collapse_btn.setText("▶")
             self.list_widget.hide()
@@ -737,8 +740,11 @@ class CompletedTasksSection(QWidget):
         self.archive_btn.clicked.connect(self._archive_completed)
         layout.addWidget(self.archive_btn, 0, Qt.AlignmentFlag.AlignHCenter)
 
-    def _toggle_collapse(self):
-        self.collapsed = not self.collapsed
+    def _toggle_collapse(self, force: bool | None = None):
+        if force is not None:
+            self.collapsed = force
+        else:
+            self.collapsed = not self.collapsed
         if self.collapsed:
             self.collapse_btn.setText("▶")
             self.list_widget.hide()
@@ -870,6 +876,27 @@ class TasksPage(QWidget):
 
         # Connections
         self.add_button.clicked.connect(self.add_task)
+
+    # ─────────────────────────────────────────────────────────────────────
+    #  State persistence
+    # ─────────────────────────────────────────────────────────────────────
+
+    def save_state(self, settings):
+        settings.beginGroup("tasks_page")
+        settings.setValue("overdue_collapsed", self.overdue_section.collapsed)
+        settings.setValue("completed_collapsed", self.completed_section.collapsed)
+        settings.endGroup()
+
+    def restore_state(self, settings):
+        settings.beginGroup("tasks_page")
+        overdue_collapsed = settings.value("overdue_collapsed", False, type=bool)
+        completed_collapsed = settings.value("completed_collapsed", False, type=bool)
+        settings.endGroup()
+        # Apply to sections (only takes effect once they are visible)
+        if overdue_collapsed:
+            self.overdue_section._toggle_collapse(force=True)
+        if completed_collapsed:
+            self.completed_section._toggle_collapse(force=True)
 
     # ─────────────────────────────────────────────────────────────────────
     #  Tracker management

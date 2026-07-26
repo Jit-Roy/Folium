@@ -208,8 +208,16 @@ class MainWindow(QMainWindow):
         settings.setValue("active_panel", self.activity_bar._active)
         
         # Delegate saving to components
+        self.notes_panel.save_state(settings)
         self.editor_tabs.save_state(settings)
         self.knowledge_panel.save_state(settings)
+        self.recent_tasks_panel.save_state(settings)
+        
+        # Save side panel visibility
+        settings.setValue("side_panel_visible", self.side_panel._is_visible)
+        
+        # Save planner week offset
+        settings.setValue("planner_week_offset", self.planner_panel.week_offset)
 
     def restore_state(self):
         settings = QSettings()
@@ -228,11 +236,30 @@ class MainWindow(QMainWindow):
         self.activity_bar.set_active(active_panel)
         
         # Delegate restoring to components
+        self.notes_panel.restore_state(settings)
         self.editor_tabs.restore_state(settings)
         self.knowledge_panel.restore_state(settings)
+        self.recent_tasks_panel.restore_state(settings)
+        
+        # Restore side panel visibility
+        side_visible = settings.value("side_panel_visible", True, type=bool)
+        if not side_visible:
+            self.side_panel.setVisible(False)
+            self.side_panel._is_visible = False
+            
+        # Restore planner week offset
+        try:
+            week_offset = settings.value("planner_week_offset", 0)
+            self.planner_panel.week_offset = int(week_offset) if week_offset is not None else 0
+        except (ValueError, TypeError):
+            self.planner_panel.week_offset = 0
         
         # Sync the panel-right button on the active editor
         self._sync_panel_btn(self.knowledge_panel.isVisible())
+        
+        # If knowledge panel was maximized, hide the editor tabs to restore that state
+        if self.knowledge_panel.is_maximized:
+            self.editor_tabs.hide()
 
     def closeEvent(self, event):
         self.save_state()

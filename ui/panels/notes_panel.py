@@ -296,6 +296,53 @@ class NotesPanel(QWidget):
 
     # ── Public API ─────────────────────────────────────────────────────────
 
+    def save_state(self, settings):
+        settings.beginGroup("notes_panel")
+        settings.setValue("splitter", self.splitter.saveState())
+        settings.setValue("tags_expanded", self.tags_header.is_expanded)
+        
+        expanded_ids = []
+        def save_expanded(parent_idx):
+            for row in range(self.topic_model.rowCount(parent_idx)):
+                idx = self.topic_model.index(row, 0, parent_idx)
+                if self.topic_view.isExpanded(idx):
+                    tid = idx.data(Qt.UserRole)
+                    if tid and tid != "temp_new":
+                        expanded_ids.append(int(tid))
+                    save_expanded(idx)
+        from PySide6.QtCore import QModelIndex
+        save_expanded(QModelIndex())
+        settings.setValue("expanded_topics", expanded_ids)
+        settings.endGroup()
+
+    def restore_state(self, settings):
+        settings.beginGroup("notes_panel")
+        if settings.value("splitter"):
+            self.splitter.restoreState(settings.value("splitter"))
+            
+        tags_expanded = settings.value("tags_expanded", True, type=bool)
+        if tags_expanded is not None:
+            self.tags_header.set_expanded(bool(tags_expanded))
+            
+        expanded = settings.value("expanded_topics", [])
+        if expanded and isinstance(expanded, list):
+            try:
+                expanded_ids = {int(x) for x in expanded if x}
+                def apply_expanded(parent_idx):
+                    for row in range(self.topic_model.rowCount(parent_idx)):
+                        idx = self.topic_model.index(row, 0, parent_idx)
+                        tid = idx.data(Qt.UserRole)
+                        if tid and int(tid) in expanded_ids:
+                            self.topic_view.expand(idx)
+                        apply_expanded(idx)
+                from PySide6.QtCore import QModelIndex
+                self.topic_view.collapseAll()
+                apply_expanded(QModelIndex())
+            except (ValueError, TypeError):
+                pass
+                
+        settings.endGroup()
+
     def load_tags(self):
         from core.database import get_session
         from core.models import Tag
