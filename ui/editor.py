@@ -145,6 +145,11 @@ class NoteEditor(QWidget):
         self.editor.setPlaceholderText("Start writing here...")
         self.editor.setEnabled(False)
         self.editor.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        self.editor.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        
+        from PySide6.QtGui import QTextOption
+        self.editor.setLineWrapMode(QTextEdit.WidgetWidth)
+        self.editor.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         self.editor.setStyleSheet("""
             QTextEdit {
                 background: transparent;

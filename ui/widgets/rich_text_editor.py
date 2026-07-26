@@ -204,6 +204,9 @@ class ImageResizerOverlay(QWidget):
             image_format.setWidth(new_rect.width() - 2*p)
             image_format.setHeight(new_rect.height() - 2*p)
             
+            # Store the user's intended width as a custom property so responsive resize doesn't forget it
+            image_format.setProperty(QTextFormat.UserProperty + 1, new_rect.width() - 2*p)
+            
             # Use a COPY of the cursor to prevent mutating the original position!
             c = QTextCursor(self.target_cursor)
             pos = c.position()
@@ -233,6 +236,69 @@ class RichTextEditor(QTextEdit):
         if self.active_overlay:
             if not getattr(self.active_overlay, 'dragging', False):
                 self.active_overlay.update_geometry()
+                
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if self.active_overlay:
+            if not getattr(self.active_overlay, 'dragging', False):
+                self.active_overlay.update_geometry()
+                
+        # Make images dynamically responsive to viewport width
+        max_w = self.viewport().width() - 20
+        if max_w < 50:
+            return
+            
+        document = self.document()
+        block = document.begin()
+        
+        from PySide6.QtGui import QImage, QTextCursor, QTextFormat
+        
+        # We need to wrap cursor modifications so they don't break the undo history into a million pieces
+        cursor_actions = []
+        
+        while block.isValid():
+            it = block.begin()
+            while not it.atEnd():
+                fragment = it.fragment()
+                if fragment.isValid():
+                    char_format = fragment.charFormat()
+                    if char_format.isImageFormat():
+                        img_fmt = char_format.toImageFormat()
+                        url = img_fmt.name()
+                        
+                        if url.startswith("file:///"):
+                            path = url.replace("file:///", "")
+                            img = QImage(path)
+                            if not img.isNull():
+                                # Check if user manually resized it before
+                                custom_w = img_fmt.property(QTextFormat.UserProperty + 1)
+                                intended_w = int(custom_w) if custom_w else img.width()
+                                
+                                # Clamp to viewport max width
+                                target_w = intended_w
+                                if intended_w > max_w:
+                                    target_w = max_w
+                                    
+                                # Only update if dimensions differ noticeably to prevent endless layout loops
+                                if abs(img_fmt.width() - target_w) > 2:
+                                    target_h = int(img.height() * (target_w / img.width()))
+                                    img_fmt.setWidth(target_w)
+                                    img_fmt.setHeight(target_h)
+                                    
+                                    # Queue the change
+                                    cursor_actions.append((fragment.position(), fragment.length(), img_fmt))
+                it += 1
+            block = block.next()
+            
+        # Apply the changes safely
+        if cursor_actions:
+            cursor = QTextCursor(document)
+            cursor.beginEditBlock()
+            for pos, length, new_fmt in cursor_actions:
+                cursor.setPosition(pos)
+                cursor.setPosition(pos + length, QTextCursor.KeepAnchor)
+                cursor.setCharFormat(new_fmt)
+            cursor.endEditBlock()
             
     def _get_image_cursor_at(self, pos):
         cursor = self.cursorForPosition(pos)
