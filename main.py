@@ -53,7 +53,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self.setWindowTitle(" ")
-        self.setWindowIcon(QIcon("assets/icons/app-icon.svg"))
+        self.setWindowIcon(QIcon("assets/icons/app-icon.ico"))
         self.resize(1600, 900)
         self._is_pseudo_maximized = False
         self.current_topic = None

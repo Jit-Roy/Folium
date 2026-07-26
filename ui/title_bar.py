@@ -38,9 +38,10 @@ class CustomTitleBar(QWidget):
         layout.setContentsMargins(15, 0, 0, 0)
         layout.setSpacing(10)
 
-        # App Icon (Custom SVG handles offset)
+        # App Icon
         icon_lbl = QLabel()
-        icon_lbl.setPixmap(QIcon("assets/icons/app-icon.svg").pixmap(18, 18))
+        icon_lbl.setStyleSheet("background: transparent;")
+        icon_lbl.setPixmap(QIcon("assets/icons/app-icon.ico").pixmap(18, 18))
         layout.addWidget(icon_lbl)
         
         layout.addStretch(1)
