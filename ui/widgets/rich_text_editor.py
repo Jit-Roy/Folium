@@ -320,15 +320,19 @@ class RichTextEditor(QTextEdit):
             
         count = 0
         doc = self.document()
-        cursor = QTextCursor(doc)
         
-        cursor.beginEditBlock()
-        while not cursor.isNull() and not cursor.atEnd():
-            cursor = doc.find(query, cursor)
-            if not cursor.isNull():
-                cursor.insertText(replacement)
+        # Use a stable cursor for the edit block so it's guaranteed to close
+        edit_cursor = QTextCursor(doc)
+        edit_cursor.beginEditBlock()
+        
+        find_cursor = QTextCursor(doc)
+        while not find_cursor.isNull() and not find_cursor.atEnd():
+            find_cursor = doc.find(query, find_cursor)
+            if not find_cursor.isNull():
+                find_cursor.insertText(replacement)
                 count += 1
-        cursor.endEditBlock()
+                
+        edit_cursor.endEditBlock()
         
         self.clear_highlights()
         return count
