@@ -13,6 +13,8 @@ import os
 from ui.widgets.floating_widgets import FloatingInput, FloatingTableGrid
 from ui.widgets.rich_text_editor import RichTextEditor
 from ui.section_menu import SectionMenu
+from ui.widgets.find_replace import FindReplaceWidget
+from PySide6.QtGui import QShortcut, QKeySequence
 
 class NoteEditor(QWidget):
     toggle_reference_viewer = Signal()  # emitted when panel-right button is clicked
@@ -68,6 +70,7 @@ class NoteEditor(QWidget):
             "code": "Code", "table": "Insert Table", "image": "Insert Image", "link": "Insert Link",
             "sigma": "Math", "fx": "Equation"
         }
+        _HISTORY_ICON = "bookmark"  # reuse bookmark icon for history
         
         for icon in format_icons:
             btn = QPushButton()
@@ -89,6 +92,21 @@ class NoteEditor(QWidget):
             toolbar.addWidget(btn)
             self.format_btns[icon] = btn
         toolbar.addStretch()
+        
+        # History button
+        self.history_btn = QPushButton()
+        self.history_btn.setIcon(QIcon("assets/icons/bookmark.svg"))
+        self.history_btn.setFixedSize(24, 24)
+        self.history_btn.setIconSize(QSize(16, 16))
+        self.history_btn.setCursor(Qt.PointingHandCursor)
+        self.history_btn.setToolTip("Note History")
+        self.history_btn.setEnabled(False)
+        self.history_btn.setStyleSheet("""
+            QPushButton { border: none; background: transparent; color: #FFFFFF; border-radius: 4px; }
+            QPushButton:hover:enabled { background: rgba(255, 255, 255, 0.1); }
+        """)
+        self.history_btn.clicked.connect(self._open_history)
+        toolbar.addWidget(self.history_btn)
         
         self.panel_right_btn = QPushButton()
         self.panel_right_btn.setIcon(QIcon("assets/icons/panel-right.svg"))
@@ -118,7 +136,11 @@ class NoteEditor(QWidget):
         lower_layout.addWidget(self.section_menu)
 
         # Content Area
-        content_layout = QVBoxLayout()
+        from PySide6.QtWidgets import QStackedWidget
+        self.canvas_stack = QStackedWidget()
+        
+        self.editor_container = QWidget()
+        content_layout = QVBoxLayout(self.editor_container)
         content_layout.setContentsMargins(40, 20, 40, 0)
         
         self.title_label = QLabel("Select a topic")
@@ -164,7 +186,10 @@ class NoteEditor(QWidget):
         self.editor.setFont(font)
         
         content_layout.addWidget(self.editor)
-        lower_layout.addLayout(content_layout)
+        
+        self.canvas_stack.addWidget(self.editor_container)
+        lower_layout.addWidget(self.canvas_stack)
+        
         layout.addLayout(lower_layout)
         
         # Status Bar
@@ -182,6 +207,18 @@ class NoteEditor(QWidget):
         status_layout.addWidget(self.words_label)
         
         layout.addLayout(status_layout)
+        
+        # Local Find & Replace Widget
+        self.find_widget = FindReplaceWidget(self.editor_container)
+        self.find_widget.hide()
+        
+        self.find_widget.find_requested.connect(self._on_find_requested)
+        self.find_widget.replace_requested.connect(self._on_replace_requested)
+        self.find_widget.replace_all_requested.connect(self._on_replace_all_requested)
+        self.find_widget.closed.connect(self._on_find_closed)
+        
+        shortcut = QShortcut(QKeySequence("Ctrl+F"), self)
+        shortcut.activated.connect(self.toggle_find_replace)
 
     def show_tag_input(self):
         if not self.current_topic_id:
@@ -189,6 +226,57 @@ class NoteEditor(QWidget):
         rect = self.add_tag_btn.geometry()
         pos = self.add_tag_btn.parentWidget().mapToGlobal(rect.bottomLeft())
         self.tag_input.show_at(pos)
+        
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'find_widget') and self.find_widget.isVisible():
+            self._position_find_widget()
+            
+    def _position_find_widget(self):
+        w = 350
+        h = self.find_widget.sizeHint().height()
+        self.find_widget.setGeometry(self.editor_container.width() - w - 40, 10, w, h)
+        
+    def toggle_find_replace(self):
+        if self.find_widget.isVisible():
+            self.find_widget.hide()
+            self.editor.clear_highlights()
+        else:
+            self._position_find_widget()
+            self.find_widget.show()
+            self.find_widget.raise_()
+            self.find_widget.focus_find()
+            
+    def _on_find_requested(self, query, forward):
+        if not query:
+            self.editor.clear_highlights()
+            self.find_widget.set_match_count(0, 0)
+            return
+            
+        # If query changed, re-highlight all
+        if not self.editor._search_matches or self.editor._search_matches[0].selectedText().lower() != query.lower():
+            tot = self.editor.highlight_all_matches(query)
+            self.find_widget.set_match_count(1 if tot > 0 else 0, tot)
+        else:
+            # Same query, just navigate
+            cur, tot = self.editor.find_next_match(forward)
+            self.find_widget.set_match_count(cur, tot)
+            
+    def _on_replace_requested(self, query, replacement):
+        if self.editor.replace_active_match(query, replacement):
+            self.save_note()
+            # Navigate to next match automatically
+            cur, tot = self.editor.find_next_match(True)
+            self.find_widget.set_match_count(cur, tot)
+            
+    def _on_replace_all_requested(self, query, replacement):
+        count = self.editor.replace_all_matches(query, replacement)
+        if count > 0:
+            self.save_note()
+            self.find_widget.set_match_count(0, 0)
+            
+    def _on_find_closed(self):
+        self.editor.clear_highlights()
 
     def on_tag_submitted(self, text):
         if not self.current_topic_id:
@@ -507,12 +595,45 @@ class NoteEditor(QWidget):
         self.status_label.setText("Saving...")
         self.save_timer.start(1000)
 
+    def _create_version_snapshot(self, note_id: int, html_content: str):
+        """Save a snapshot of the note and prune old ones (keep max 50)."""
+        try:
+            from core.database import get_session
+            from core.models import NoteVersion
+            
+            plain = ''.join(re.sub(r'<[^>]+>', ' ', html_content).split())
+            wc = len([w for w in html_content.split() if w.strip()])
+            
+            session = get_session()
+            snapshot = NoteVersion(
+                note_id=note_id,
+                content=html_content,
+                word_count=wc,
+            )
+            session.add(snapshot)
+            session.flush()
+            
+            # Prune: keep only the 50 most recent
+            all_versions = (
+                session.query(NoteVersion)
+                .filter_by(note_id=note_id)
+                .order_by(NoteVersion.saved_at.desc())
+                .all()
+            )
+            for old in all_versions[50:]:
+                session.delete(old)
+            session.commit()
+            session.close()
+        except Exception:
+            pass  # versioning is non-critical
+
     def save_note(self):
         if not self.current_topic_id:
             return
             
         from core.database import get_session
         from core.models import Note
+        import re
         
         session = get_session()
         note = session.query(Note).filter_by(
@@ -524,9 +645,14 @@ class NoteEditor(QWidget):
             note = Note(topic_id=self.current_topic_id, section_type=self.current_section)
             session.add(note)
             
-        note.content = self.editor.toHtml()
+        html_content = self.editor.toHtml()
+        note.content = html_content
         session.commit()
+        note_id = note.id
         session.close()
+        
+        # Create a version snapshot asynchronously (non-blocking)
+        QTimer.singleShot(0, lambda: self._create_version_snapshot(note_id, html_content))
         
         self.status_label.setText("Saved")
 
@@ -577,9 +703,61 @@ class NoteEditor(QWidget):
             
         self.editor.setEnabled(True)
         self.editor.blockSignals(False)
+        self.history_btn.setEnabled(True)
         
         self.on_text_changed()
         self.status_label.setText("Loaded")
+
+    def _open_history(self):
+        """Toggle the Note History view in the canvas."""
+        if hasattr(self, 'history_view') and self.canvas_stack.currentWidget() == self.history_view:
+            # Switch back to editor
+            self.canvas_stack.setCurrentWidget(self.editor_container)
+            self.canvas_stack.removeWidget(self.history_view)
+            self.history_view.deleteLater()
+            del self.history_view
+            self.history_btn.setIcon(QIcon("assets/icons/bookmark.svg"))
+            self.history_btn.setToolTip("Note History")
+            return
+            
+        if not self.current_topic_id:
+            return
+        
+        from core.database import get_session
+        from core.models import Note
+        from ui.panels.note_history_dialog import NoteHistoryView
+        
+        session = get_session()
+        note = session.query(Note).filter_by(
+            topic_id=self.current_topic_id,
+            section_type=self.current_section
+        ).first()
+        note_id = note.id if note else None
+        session.close()
+        
+        if not note_id:
+            return
+        
+        self.history_view = NoteHistoryView(note_id, self.editor.toHtml(), parent=self)
+        self.history_view.restore_requested.connect(self._restore_version)
+        self.history_view.close_requested.connect(self._open_history)
+        
+        self.canvas_stack.addWidget(self.history_view)
+        self.canvas_stack.setCurrentWidget(self.history_view)
+        
+        self.history_btn.setIcon(QIcon("assets/icons/x.svg"))
+        self.history_btn.setToolTip("Back to Editor")
+
+    def _restore_version(self, html_content: str):
+        """Replace the current editor content with a restored version and save."""
+        self.editor.blockSignals(True)
+        self.editor.setHtml(html_content)
+        self.editor.blockSignals(False)
+        self.save_note()
+        self.status_label.setText("Version restored")
+        
+        if hasattr(self, 'history_view') and self.canvas_stack.currentWidget() == self.history_view:
+            self._open_history()  # Toggle back to editor
 
     def export_markdown(self):
         from PySide6.QtWidgets import QFileDialog

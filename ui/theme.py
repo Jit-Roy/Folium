@@ -35,6 +35,8 @@ QTreeView::item:selected {
 QTextEdit, QPlainTextEdit {
     background-color: #121212;
     color: #FFFFFF;
+    selection-background-color: #FFC933;
+    selection-color: #121212;
     border: none;
     padding: 40px;
     font-size: 11pt;

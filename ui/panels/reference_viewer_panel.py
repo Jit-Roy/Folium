@@ -4,7 +4,7 @@ from PySide6.QtWidgets import (
     QFileDialog
 )
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings
+from PySide6.QtWebEngineCore import QWebEngineProfile, QWebEngineSettings, QWebEngineScript
 from PySide6.QtCore import Qt, QUrl, Signal
 from PySide6.QtGui import QIcon, QColor
 import os
@@ -109,37 +109,25 @@ class ReferenceViewerPanel(QWidget):
             ("Google", "https://www.google.com"),
         ]
         
-        shortcut_style = """
-            QPushButton {
-                border: 1px solid #333333;
-                background: #242424;
-                color: #FFFFFF;
-                border-radius: 4px;
-                padding: 0px 8px;
-                font-size: 10px;
-            }
-            QPushButton:hover {
-                border: 1px solid #B48EAD;
-                color: #B48EAD;
-                background: rgba(180,142,173,0.1);
-            }
-        """
+        self.nav_buttons = {}
         
         # Home button
         home_btn = QPushButton("Home")
         home_btn.setFixedHeight(24)
         home_btn.setCursor(Qt.PointingHandCursor)
-        home_btn.setStyleSheet(shortcut_style)
+        home_btn.setStyleSheet(self._get_btn_style(False))
         home_btn.clicked.connect(self._load_welcome_page)
         shortcuts_layout.addWidget(home_btn)
+        self.nav_buttons["home"] = home_btn
 
         for label, url in shortcut_data:
             btn = QPushButton(label)
             btn.setFixedHeight(24)
             btn.setCursor(Qt.PointingHandCursor)
-            btn.setStyleSheet(shortcut_style)
+            btn.setStyleSheet(self._get_btn_style(False))
             btn.clicked.connect(lambda _, u=url: self._load_url(u))
             shortcuts_layout.addWidget(btn)
+            self.nav_buttons[label.lower()] = btn
 
         shortcuts_layout.addStretch()
         layout.addWidget(shortcuts_frame)
@@ -176,8 +164,42 @@ class ReferenceViewerPanel(QWidget):
         settings.setAttribute(QWebEngineSettings.WebAttribute.ScrollAnimatorEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.PdfViewerEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.PluginsEnabled, True)
+        
+        dark_script = QWebEngineScript()
+        dark_script.setName("ForceDarkBackground")
+        dark_script.setSourceCode("""
+            (function() {
+                var style = document.createElement('style');
+                style.type = 'text/css';
+                style.innerHTML = 'html, body { background-color: #121212 !important; }';
+                document.documentElement.appendChild(style);
+            })();
+        """)
+        dark_script.setInjectionPoint(QWebEngineScript.DocumentCreation)
+        dark_script.setWorldId(QWebEngineScript.MainWorld)
+        dark_script.setRunsOnSubFrames(True)
+        profile.scripts().insert(dark_script)
 
-        layout.addWidget(self.web_view, stretch=1)
+        self.stack = QStackedWidget()
+        self.loading_frame = QFrame()
+        self.loading_frame.setStyleSheet("background-color: #121212;")
+        
+        self.stack.addWidget(self.web_view)
+        self.stack.addWidget(self.loading_frame)
+        self.stack.setCurrentWidget(self.web_view)
+        
+        from PySide6.QtCore import QTimer
+        
+        def _on_load_started():
+            self.stack.setCurrentWidget(self.loading_frame)
+
+        def _on_load_finished(ok):
+            QTimer.singleShot(1200, lambda: self.stack.setCurrentWidget(self.web_view))
+
+        self.web_view.loadStarted.connect(_on_load_started)
+        self.web_view.loadFinished.connect(_on_load_finished)
+
+        layout.addWidget(self.stack, stretch=1)
 
     def save_state(self, settings):
         settings.beginGroup("reference_viewer")
@@ -273,7 +295,7 @@ class ReferenceViewerPanel(QWidget):
             qs = urllib.parse.parse_qs(parsed.query)
             
             display_url = f"https://www.youtube.com/watch?v={vid_id}"
-            embed_src = f"https://www.youtube.com/embed/{vid_id}?autoplay=0&rel=0"
+            embed_src = f"https://www.youtube.com/embed/{vid_id}?autoplay=0&rel=0&theme=dark"
             
             if 'list' in qs:
                 embed_src += f"&list={qs['list'][0]}"
@@ -286,7 +308,7 @@ class ReferenceViewerPanel(QWidget):
             # Use localhost as a safe, permitted origin.
             html = f"""
             <!DOCTYPE html>
-            <html style="margin:0;padding:0;width:100%;height:100%;overflow:hidden;">
+            <html style="margin:0;padding:0;width:100%;height:100%;overflow:hidden;background:#121212;color-scheme:dark;">
               <body style="margin:0;padding:0;width:100%;height:100%;background:#121212;">
                 <iframe style="width:100%;height:100%;border:none;" 
                         src="{embed_src}" 
@@ -318,6 +340,18 @@ class ReferenceViewerPanel(QWidget):
     def _on_url_changed(self, qurl: QUrl):
         """Sync URL bar when the page navigates — ignore internal welcome page URLs."""
         url_str = qurl.toString()
+        
+        active_key = "home" if url_str.startswith("data:") or not url_str else None
+        if not active_key:
+            if "youtube.com" in url_str or "youtu.be" in url_str:
+                active_key = "youtube"
+            elif "wikipedia.org" in url_str:
+                active_key = "wikipedia"
+            elif "google.com" in url_str:
+                active_key = "google"
+                
+        for key, btn in getattr(self, 'nav_buttons', {}).items():
+            btn.setStyleSheet(self._get_btn_style(key == active_key))
         # Skip our fake base URL for YouTube
         if url_str.startswith("http://localhost/"):
             return
@@ -348,5 +382,33 @@ class ReferenceViewerPanel(QWidget):
             "Supported Files (*.pdf *.html *.htm *.txt *.jpg *.png);;PDF Files (*.pdf);;All Files (*)"
         )
         if file_path:
-            self.url_bar.setText(file_path)
-            self._navigate()
+            self._load_url(file_path)
+
+    def _get_btn_style(self, active: bool) -> str:
+        if active:
+            return """
+                QPushButton {
+                    border: 1px solid #B48EAD;
+                    background: rgba(180, 142, 173, 0.15);
+                    color: #B48EAD;
+                    border-radius: 4px;
+                    padding: 0px 8px;
+                    font-size: 10px;
+                    font-weight: bold;
+                }
+            """
+        return """
+            QPushButton {
+                border: 1px solid #333333;
+                background: #242424;
+                color: #FFFFFF;
+                border-radius: 4px;
+                padding: 0px 8px;
+                font-size: 10px;
+            }
+            QPushButton:hover {
+                border: 1px solid #B48EAD;
+                color: #B48EAD;
+                background: rgba(180, 142, 173, 0.1);
+            }
+        """

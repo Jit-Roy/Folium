@@ -44,6 +44,7 @@ from ui.panels.habits_panel import HabitPage as HabitsPanel
 from ui.panels.planner_panel import PlannerPage as PlannerPanel
 from ui.editor_tabs import EditorTabs
 from ui.knowledge_panel import KnowledgePanel
+from ui.panels.search_panel import SearchOverlay
 from core.database import init_db, get_session
 from core.models import Topic
 
@@ -96,7 +97,6 @@ class MainWindow(QMainWindow):
         self.recent_tasks_service = TasksService()
         self.recent_tasks_panel = TasksPage(self.recent_tasks_service)
 
-        # ── Side Panel (stacked pages) ───────────────────────────
         self.notes_panel   = NotesPanel()
         
         self.side_panel = SidePanel({
@@ -210,6 +210,15 @@ class MainWindow(QMainWindow):
         # Reference viewer maximize button → hide the canvas
         self.knowledge_panel.maximize_requested.connect(self._on_reference_viewer_maximize_requested)
 
+        # ── Global Search overlay (Ctrl+Shift+F) ───────────────────────────
+        from PySide6.QtGui import QShortcut, QKeySequence
+        self.search_overlay = SearchOverlay(self)
+        self.search_overlay.topic_selected.connect(self._on_search_result_selected)
+        self.search_overlay.hide()
+
+        shortcut = QShortcut(QKeySequence("Ctrl+Shift+F"), self)
+        shortcut.activated.connect(self._toggle_search_overlay)
+
         # ── Load data ──────────────────────────────────────────────────
         self.notes_panel.load_topics_from_db()
         self.notes_panel.load_tags()
@@ -221,6 +230,10 @@ class MainWindow(QMainWindow):
         settings = QSettings()
         settings.setValue("geometry", self.saveGeometry())
         settings.setValue("windowState", self.saveState())
+        settings.setValue("is_pseudo_maximized", getattr(self, "_is_pseudo_maximized", False))
+        if hasattr(self, "_normal_geometry"):
+            settings.setValue("normal_geometry", self._normal_geometry)
+            
         settings.setValue("main_splitter_v2", self.main_splitter.saveState())
         settings.setValue("inner_splitter_v2", self.inner_splitter.saveState())
         
@@ -242,6 +255,9 @@ class MainWindow(QMainWindow):
     def restore_state(self):
         settings = QSettings()
         
+        if settings.value("normal_geometry"):
+            self._normal_geometry = settings.value("normal_geometry")
+            
         if settings.value("geometry"):
             self.restoreGeometry(settings.value("geometry"))
         if settings.value("windowState"):
@@ -280,6 +296,24 @@ class MainWindow(QMainWindow):
         # If knowledge panel was maximized, hide the editor tabs to restore that state
         if self.knowledge_panel.is_maximized:
             self.editor_tabs.hide()
+            
+        # Restore maximized state explicitly
+        is_max = settings.value("is_pseudo_maximized", False, type=bool)
+        if is_max:
+            self._is_pseudo_maximized = True
+            self.title_bar.update_max_icon(True)
+            
+            from PySide6.QtWidgets import QApplication
+            screen = QApplication.screenAt(self.geometry().center())
+            if screen:
+                self.setGeometry(screen.availableGeometry())
+        else:
+            self._is_pseudo_maximized = False
+            self.title_bar.update_max_icon(False)
+
+        # Show the window now that the UI state has been completely restored
+        # This prevents the user from seeing the initial unstyled or partial loading state
+        self.show()
 
     def closeEvent(self, event):
         self.save_state()
@@ -319,6 +353,55 @@ class MainWindow(QMainWindow):
         # When folder architecture is collapsed, expand Reference Viewer to maximum
         if not self.side_panel._is_visible and self.knowledge_panel.isVisible():
             self.inner_splitter.setSizes([750, 100000])
+
+    def _toggle_search_overlay(self):
+        """Toggle the VS Code-style floating global search overlay (Ctrl+Shift+F)."""
+        if self.search_overlay.isVisible():
+            self.search_overlay.hide()
+        else:
+            self._position_search_overlay()
+            self.search_overlay.show()
+            self.search_overlay.raise_()
+            self.search_overlay.focus_search()
+
+    def _position_search_overlay(self):
+        """Position the overlay in the top-right area of the editor, VS Code style."""
+        # Get the geometry of the right area (inner_splitter)
+        ref = self.inner_splitter
+        tl = ref.mapTo(self, ref.rect().topLeft())
+        overlay_w = min(420, ref.width() - 40)
+        x = tl.x() + ref.width() - overlay_w - 30
+        y = tl.y() + 15
+        self.search_overlay.setFixedWidth(overlay_w)
+        self.search_overlay.move(x, y)
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        if hasattr(self, 'search_overlay') and self.search_overlay.isVisible():
+            self._position_search_overlay()
+
+    def _on_search_result_selected(self, topic_id: int, section_type: str):
+        """Called when user clicks a search result — opens the matched note section."""
+        self.search_overlay.hide()
+        # Switch the main view to notes/editor
+        self.central_stack.setCurrentWidget(self.inner_splitter)
+        # Open the topic in the editor at the correct section
+        session = get_session()
+        topic = session.get(Topic, topic_id)
+        if topic:
+            class _T:
+                def __init__(self, t, section):
+                    self.id = t.id
+                    self.name = t.name
+                    self.path_parts = [(t.name, t.id)]
+                    self.children = []
+                    self.children_count = 0
+                    self._section = section
+            t = _T(topic, section_type)
+            session.close()
+            self.editor_tabs.open_topic(t, section_type)
+        else:
+            session.close()
 
     def on_topic_selected(self, topic_id: int):
         session = get_session()
@@ -471,5 +554,6 @@ if __name__ == "__main__":
     init_db()
     app.setStyleSheet(MAIN_QSS)
     window = MainWindow()
-    window.show()
+    # Note: window.show() is called at the end of window.restore_state()
+    # to prevent visual UI flashing on startup
     sys.exit(app.exec())

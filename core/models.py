@@ -183,3 +183,21 @@ class JournalEntry(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     entry_date = Column(String(50), nullable=False, unique=True)
     content = Column(Text, default="")
+
+
+class NoteVersion(Base):
+    """
+    Stores a historical snapshot of a note's HTML content.
+    A maximum of 50 versions are kept per note (oldest auto-pruned on save).
+    """
+    __tablename__ = 'note_versions'
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    note_id = Column(Integer, ForeignKey('notes.id'), nullable=False)
+    content = Column(Text, nullable=False)
+    word_count = Column(Integer, default=0)
+    saved_at = Column(DateTime, default=datetime.utcnow)
+
+    note = relationship("Note")
+
+

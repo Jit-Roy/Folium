@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QTextEdit, QWidget
-from PySide6.QtGui import QTextCursor, QTextFormat, QDesktopServices, QPainter, QColor, QPen
+from PySide6.QtGui import QTextCursor, QTextFormat, QTextCharFormat, QDesktopServices, QPainter, QColor, QPen
 from PySide6.QtCore import Qt, QUrl, QRect, QPoint, Signal, QTimer
 import os
 
@@ -230,6 +230,108 @@ class RichTextEditor(QTextEdit):
         super().__init__(parent)
         self.setMouseTracking(True)
         self.active_overlay = None
+        self._search_matches = []  # list of QTextCursor
+        self._current_match_idx = -1
+        
+    def clear_highlights(self):
+        self.setExtraSelections([])
+        self._search_matches = []
+        self._current_match_idx = -1
+        
+        # Clear the active selection from the main cursor
+        cursor = self.textCursor()
+        if cursor.hasSelection():
+            cursor.clearSelection()
+            self.blockSignals(True)
+            self.setTextCursor(cursor)
+            self.blockSignals(False)
+        
+    def highlight_all_matches(self, query: str):
+        self.clear_highlights()
+        if not query:
+            return 0, 0
+            
+        selections = []
+        doc = self.document()
+        cursor = QTextCursor(doc)
+        
+        # Color for all background matches
+        bg_format = QTextFormat()
+        bg_char_format = QTextCharFormat()
+        bg_char_format.setBackground(QColor(255, 215, 0, 80)) # Translucent yellow for matches
+        
+        # Find all occurrences
+        while not cursor.isNull() and not cursor.atEnd():
+            cursor = doc.find(query, cursor)
+            if not cursor.isNull():
+                self._search_matches.append(QTextCursor(cursor))
+                
+                sel = QTextEdit.ExtraSelection()
+                sel.cursor = QTextCursor(cursor)
+                sel.format = bg_char_format
+                selections.append(sel)
+                
+        self.setExtraSelections(selections)
+        
+        # Select first match by default if any exist
+        if self._search_matches:
+            self._current_match_idx = 0
+            self._highlight_active_match()
+            
+        return len(self._search_matches)
+
+    def _highlight_active_match(self):
+        if not self._search_matches or self._current_match_idx < 0:
+            return
+            
+        # Temporarily block signals to avoid triggering text change events when moving cursor
+        self.blockSignals(True)
+        active_cursor = self._search_matches[self._current_match_idx]
+        self.setTextCursor(active_cursor)
+        self.blockSignals(False)
+        
+    def find_next_match(self, forward=True):
+        if not self._search_matches:
+            return 0, 0
+            
+        if forward:
+            self._current_match_idx = (self._current_match_idx + 1) % len(self._search_matches)
+        else:
+            self._current_match_idx = (self._current_match_idx - 1) % len(self._search_matches)
+            
+        self._highlight_active_match()
+        return self._current_match_idx + 1, len(self._search_matches)
+        
+    def replace_active_match(self, query: str, replacement: str):
+        if not self._search_matches or self._current_match_idx < 0:
+            return False
+            
+        cursor = self.textCursor()
+        if cursor.selectedText().lower() == query.lower():
+            cursor.insertText(replacement)
+            # Re-run search to update highlights and lists
+            self.highlight_all_matches(query)
+            return True
+        return False
+        
+    def replace_all_matches(self, query: str, replacement: str):
+        if not query:
+            return 0
+            
+        count = 0
+        doc = self.document()
+        cursor = QTextCursor(doc)
+        
+        cursor.beginEditBlock()
+        while not cursor.isNull() and not cursor.atEnd():
+            cursor = doc.find(query, cursor)
+            if not cursor.isNull():
+                cursor.insertText(replacement)
+                count += 1
+        cursor.endEditBlock()
+        
+        self.clear_highlights()
+        return count
         
     def scrollContentsBy(self, dx, dy):
         super().scrollContentsBy(dx, dy)
