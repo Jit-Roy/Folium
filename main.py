@@ -10,7 +10,8 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = (
     "--log-level=3 "
     "--enable-gpu-rasterization "
     "--enable-zero-copy "
-    "--ignore-gpu-blocklist"
+    "--ignore-gpu-blocklist "
+    "--blink-settings=darkModeEnabled=true,darkModeImagePolicy=2"
 )
 os.environ["QT_LOGGING_RULES"] = (
     "qt.webenginecontext.info=false;"
@@ -25,9 +26,11 @@ from PySide6.QtWidgets import (
     QStackedWidget
 )
 from PySide6.QtCore import Qt, QSettings, QTimer, QByteArray
+from PySide6.QtGui import QIcon
 
 from ui.theme import MAIN_QSS
 from ui.activity_bar import ActivityBar
+from ui.title_bar import CustomTitleBar
 from ui.side_panel import SidePanel
 from ui.panels.context_sidebar import ContextSidebar
 from ui.panels.habits_sidebar import HabitsSidebar
@@ -48,18 +51,35 @@ from core.models import Topic
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Study Notebook")
+        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
+        self.setWindowTitle(" ")
+        self.setWindowIcon(QIcon("assets/icons/app-icon.svg"))
         self.resize(1600, 900)
+        self._is_pseudo_maximized = False
         self.current_topic = None
         self._init_ui()
+        
+        # Install global event filter to capture mouse movements over child widgets for edge resizing
+        from PySide6.QtWidgets import QApplication
+        QApplication.instance().installEventFilter(self)
 
     def _init_ui(self):
-        # ── Outermost horizontal layout: ActivityBar | SidePanel | RightArea ─
+        # ── Outermost vertical layout for title bar + main content ─
+        main_container = QWidget()
+        v_layout = QVBoxLayout(main_container)
+        v_layout.setContentsMargins(0, 0, 0, 0)
+        v_layout.setSpacing(0)
+        self.setCentralWidget(main_container)
+        
+        self.title_bar = CustomTitleBar(self)
+        v_layout.addWidget(self.title_bar)
+        
+        # ── Inner horizontal layout: ActivityBar | SidePanel | RightArea ─
         root = QWidget()
         root_layout = QHBoxLayout(root)
         root_layout.setContentsMargins(0, 0, 0, 0)
         root_layout.setSpacing(0)
-        self.setCentralWidget(root)
+        v_layout.addWidget(root)
 
         # ── Activity Bar ──────────────────────────────────────────────────
         self.activity_bar = ActivityBar()
@@ -194,8 +214,8 @@ class MainWindow(QMainWindow):
         self.notes_panel.load_topics_from_db()
         self.notes_panel.load_tags()
 
-        # Restore application state synchronously before the window is shown to prevent UI flicker
-        self.restore_state()
+        # Restore application state after the event loop starts to prevent UI flicker and access violations
+        QTimer.singleShot(100, self.restore_state)
 
     def save_state(self):
         settings = QSettings()
@@ -345,6 +365,73 @@ class MainWindow(QMainWindow):
         """Collapse the right panel."""
         self.knowledge_panel.hide()
         self._sync_panel_btn(False)
+
+    RESIZE_MARGIN = 6
+
+    def eventFilter(self, obj, event):
+        from PySide6.QtCore import QEvent, Qt
+        if event.type() in (QEvent.MouseMove, QEvent.MouseButtonPress):
+            if not self.isVisible() or self.isMaximized() or getattr(self, '_is_pseudo_maximized', False):
+                return super().eventFilter(obj, event)
+
+            try:
+                global_pos = event.globalPosition().toPoint()
+            except AttributeError:
+                return super().eventFilter(obj, event)
+                
+            pos = self.mapFromGlobal(global_pos)
+            w, h = self.width(), self.height()
+            
+            m = 6
+            left = pos.x() < m and pos.x() >= 0
+            right = pos.x() > w - m and pos.x() <= w
+            top = pos.y() < m and pos.y() >= 0
+            bottom = pos.y() > h - m and pos.y() <= h
+            
+            if top and pos.x() > w - 150:
+                top = False
+                right = False
+
+            is_edge = left or right or top or bottom
+
+            if event.type() == QEvent.MouseMove:
+                if is_edge:
+                    cursor = Qt.ArrowCursor
+                    if (top and left) or (bottom and right): cursor = Qt.SizeFDiagCursor
+                    elif (top and right) or (bottom and left): cursor = Qt.SizeBDiagCursor
+                    elif left or right: cursor = Qt.SizeHorCursor
+                    elif top or bottom: cursor = Qt.SizeVerCursor
+                    
+                    if not getattr(self, '_cursor_overridden', False):
+                        from PySide6.QtWidgets import QApplication
+                        QApplication.setOverrideCursor(cursor)
+                        self._cursor_overridden = True
+                    else:
+                        from PySide6.QtWidgets import QApplication
+                        QApplication.changeOverrideCursor(cursor)
+                    return True
+                else:
+                    if getattr(self, '_cursor_overridden', False):
+                        from PySide6.QtWidgets import QApplication
+                        QApplication.restoreOverrideCursor()
+                        self._cursor_overridden = False
+
+            elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+                if getattr(self, '_cursor_overridden', False):
+                    from PySide6.QtWidgets import QApplication
+                    QApplication.restoreOverrideCursor()
+                    self._cursor_overridden = False
+                    
+                if is_edge and self.windowHandle():
+                    edges = Qt.Edge(0)
+                    if top: edges |= Qt.Edge.TopEdge
+                    if bottom: edges |= Qt.Edge.BottomEdge
+                    if left: edges |= Qt.Edge.LeftEdge
+                    if right: edges |= Qt.Edge.RightEdge
+                    self.windowHandle().startSystemResize(edges)
+                    return True
+
+        return super().eventFilter(obj, event)
 
     def _on_reference_viewer_maximize_requested(self, is_maximized: bool):
         """Maximize the reference viewer by hiding the editor canvas."""

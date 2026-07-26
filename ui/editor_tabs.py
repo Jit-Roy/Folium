@@ -229,14 +229,17 @@ class EditorTabs(QWidget):
         _tc_layout.addWidget(tab_header)
         _tc_layout.addWidget(self.stacked_editors)
 
+        # Main outer stack to prevent layout recalculation crashes with WebEngine
+        self.main_stack = QStackedWidget()
+        layout.addWidget(self.main_stack)
+
         # Placeholder
         self.empty_label = QLabel("Drag a note here or click one in the Explorer")
         self.empty_label.setAlignment(Qt.AlignCenter)
         self.empty_label.setStyleSheet("color: #555555; font-size: 16px; font-style: italic;")
 
-        layout.addWidget(self.empty_label)
-        layout.addWidget(self._tab_container)
-        self._tab_container.hide()
+        self.main_stack.addWidget(self.empty_label)
+        self.main_stack.addWidget(self._tab_container)
 
         self._tab_bar.tabCloseRequested.connect(self._on_tab_close)
         self._tab_bar.currentChanged.connect(self._on_tab_changed)
@@ -537,7 +540,7 @@ class EditorTabs(QWidget):
         from PySide6.QtGui import QIcon
         
         # Wrap button in a container so QTabBar respects our right margin
-        container = QWidget()
+        container = QWidget(self._tab_bar)
         container_layout = QHBoxLayout(container)
         container_layout.setContentsMargins(0, 0, 8, 0)  # 8px gap on the right
         container_layout.setSpacing(0)
@@ -626,8 +629,10 @@ class EditorTabs(QWidget):
 
     def _update_visibility(self):
         has_tabs = self._tab_bar.count() > 0
-        self._tab_container.setVisible(has_tabs)
-        self.empty_label.setVisible(not has_tabs)
+        if has_tabs:
+            self.main_stack.setCurrentIndex(1)
+        else:
+            self.main_stack.setCurrentIndex(0)
 
     # ── Drag and Drop ──────────────────────────────────────────────────────
 
