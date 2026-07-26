@@ -696,7 +696,7 @@ class HabitPage(QWidget):
 
         body = QWidget()
         body.setObjectName("Body")
-        body.setStyleSheet(f"QWidget#Body {{ background: {_BG}; min-height: 100%; }}")
+        body.setStyleSheet(f"QWidget#Body {{ background: {_BG}; }}")
         body.setAutoFillBackground(True)
         body.setPalette(self._background_palette)
         bl = QVBoxLayout(body)
