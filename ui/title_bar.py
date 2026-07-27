@@ -54,6 +54,7 @@ class CustomTitleBar(QWidget):
         min_btn = QPushButton("\uE921") 
         min_btn.setFixedSize(46, 35)
         min_btn.clicked.connect(self.parent.showMinimized)
+        self.min_btn = min_btn
         
         max_btn = QPushButton("\uE922")
         max_btn.setFixedSize(46, 35)
@@ -64,6 +65,7 @@ class CustomTitleBar(QWidget):
         close_btn.setObjectName("closeBtn")
         close_btn.setFixedSize(46, 35)
         close_btn.clicked.connect(self.parent.close)
+        self.close_btn = close_btn
 
         layout.addWidget(min_btn)
         layout.addWidget(max_btn)

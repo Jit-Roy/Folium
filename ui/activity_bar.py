@@ -58,6 +58,7 @@ class ActivityBar(QWidget):
     """
     panel_requested = Signal(str)   # "notes" | "tags"
     toggle_panel    = Signal()      # emitted when active icon clicked again
+    settings_requested = Signal()   # emitted when settings icon is clicked
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -100,6 +101,7 @@ class ActivityBar(QWidget):
         self.settings_btn.setFixedSize(48, 48)
         self.settings_btn.setToolTip("Settings")
         self.settings_btn.setStyleSheet(_SETTINGS_STYLE)
+        self.settings_btn.clicked.connect(self.settings_requested.emit)
         layout.addWidget(self.settings_btn)
 
         # Default: activate Notes (no signal)

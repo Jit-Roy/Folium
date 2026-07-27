@@ -190,6 +190,7 @@ class MainWindow(QMainWindow):
         # Activity bar ↔ side panel switching
         self.activity_bar.panel_requested.connect(self._on_panel_requested)
         self.activity_bar.toggle_panel.connect(self._toggle_side_panel)
+        self.activity_bar.settings_requested.connect(self._open_settings)
 
         # Panel-right button in any open editor → toggle reference panel
         self.editor_tabs.toggle_reference_viewer.connect(self._toggle_reference_panel)
@@ -429,6 +430,30 @@ class MainWindow(QMainWindow):
 
         session.close()
 
+    def _toggle_reference_panel(self, url: str):
+        if not self.knowledge_panel.isVisible():
+            self.knowledge_panel.show()
+            self.knowledge_panel.is_maximized = False
+            self.knowledge_panel.setMaximumWidth(400)
+            self.knowledge_panel.reference_panel.load_url(url)
+            self.knowledge_panel.switch_tab("REFERENCE")
+        else:
+            if self.knowledge_panel.active_tab == "REFERENCE" and self.knowledge_panel.reference_panel.web_view.url().toString() == url:
+                self.knowledge_panel.hide()
+            else:
+                self.knowledge_panel.switch_tab("REFERENCE")
+                self.knowledge_panel.reference_panel.load_url(url)
+
+    def _open_settings(self):
+        from ui.panels.settings_dialog import SettingsDialog
+        dialog = SettingsDialog(self)
+        dialog.exec()
+
+    def _hide_reference_panel(self):
+        """Collapse the right panel."""
+        self.knowledge_panel.hide()
+        self._sync_panel_btn(False)
+
     def _on_active_tab_changed(self, topic):
         self.current_topic = topic
         if topic:
@@ -443,11 +468,6 @@ class MainWindow(QMainWindow):
             self.notes_panel.clear_selection()
             self.knowledge_panel.set_current_topic(None)
             self.knowledge_panel.set_active_editor(None)
-
-    def _hide_reference_panel(self):
-        """Collapse the right panel."""
-        self.knowledge_panel.hide()
-        self._sync_panel_btn(False)
 
     RESIZE_MARGIN = 6
 
