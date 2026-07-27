@@ -70,7 +70,7 @@ class NoteEditor(QWidget):
             "code": "Code", "table": "Insert Table", "image": "Insert Image", "link": "Insert Link",
             "sigma": "Math", "fx": "Equation"
         }
-        _HISTORY_ICON = "bookmark"  # reuse bookmark icon for history
+        _HISTORY_ICON = "history"
         
         for icon in format_icons:
             btn = QPushButton()
@@ -95,7 +95,7 @@ class NoteEditor(QWidget):
         
         # History button
         self.history_btn = QPushButton()
-        self.history_btn.setIcon(QIcon("assets/icons/bookmark.svg"))
+        self.history_btn.setIcon(QIcon("assets/icons/history.svg"))
         self.history_btn.setFixedSize(24, 24)
         self.history_btn.setIconSize(QSize(16, 16))
         self.history_btn.setCursor(Qt.PointingHandCursor)
@@ -716,7 +716,7 @@ class NoteEditor(QWidget):
             self.canvas_stack.removeWidget(self.history_view)
             self.history_view.deleteLater()
             del self.history_view
-            self.history_btn.setIcon(QIcon("assets/icons/bookmark.svg"))
+            self.history_btn.setIcon(QIcon("assets/icons/history.svg"))
             self.history_btn.setToolTip("Note History")
             return
             
