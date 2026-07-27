@@ -47,14 +47,9 @@ class ImageResizerOverlay(QWidget):
         x = rect.x()
         y = rect.y()
         
-        logging.debug(f"[update_geometry] cursor pos: {self.target_cursor.position()}")
-        logging.debug(f"[update_geometry] cursorRect: {rect.x()}, {rect.y()}, {rect.width()}, {rect.height()}")
-        logging.debug(f"[update_geometry] img_fmt w/h: {width}x{height}")
-        
         # Prevent ghost bounds from oversized images
         max_w = self.editor.viewport().width() - x - 5
         if width > max_w:
-            logging.debug(f"[update_geometry] CLAMPING width from {width} to {max_w}")
             height = int(height * (max_w / width))
             width = max_w
             
@@ -69,7 +64,6 @@ class ImageResizerOverlay(QWidget):
             c.setCharFormat(image_format)
             
         p = self.padding
-        logging.debug(f"[update_geometry] final overlay rect: x={x-p}, y={y-p}, w={width+2*p}, h={height+2*p}")
         self.setGeometry(x - p, y - p, int(width) + 2*p, int(height) + 2*p)
         self.show()
 
@@ -188,7 +182,6 @@ class ImageResizerOverlay(QWidget):
                 new_rect.setTop(min(self.start_geometry.bottom() - 50, self.start_geometry.top() + delta.y()))
                 
             old_rect = self.geometry()
-            logging.debug(f"[mouseMoveEvent] dragging {self.drag_handle}, new_rect: {new_rect}")
             self.setGeometry(new_rect)
             if self.parent():
                 self.parent().repaint(old_rect)
@@ -196,7 +189,6 @@ class ImageResizerOverlay(QWidget):
     def mouseReleaseEvent(self, event):
         if self.dragging:
             new_rect = self.geometry()
-            logging.debug(f"[mouseReleaseEvent] final applied size: {new_rect.width()}x{new_rect.height()}")
             char_format = self.target_cursor.charFormat()
             image_format = char_format.toImageFormat()
             
@@ -453,7 +445,6 @@ class RichTextEditor(QTextEdit):
         img_cursor = self._get_image_cursor_at(pos)
         
         if img_cursor:
-            logging.debug(f"[mousePressEvent] HIT! Spawning overlay for image")
             img_fmt = img_cursor.charFormat().toImageFormat()
             if img_fmt.width() <= 0:
                 img_fmt.setWidth(300)
