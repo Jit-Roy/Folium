@@ -53,8 +53,6 @@ class SectionMenu(QWidget):
             ("NOTES", "file-text"),
             ("QUESTIONS", "help-circle"),
             ("RESOURCES", "link"),
-            ("IMAGES", "image"),
-            ("FLASHCARDS", "layers"),
             ("SUB TOPICS", "git-branch")
         ]
         

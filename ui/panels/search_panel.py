@@ -58,9 +58,7 @@ class _ResultCard(QFrame):
         'NOTES':      '#4C8BB5',
         'QUESTIONS':  '#B5844C',
         'RESOURCES':  '#4CB57A',
-        'IMAGES':     '#9B4CB5',
-        'FLASHCARDS': '#B54C4C',
-        'SUB TOPICS': '#4CB5B5',
+        'SUB TOPICS': '#4CB5B5'
     }
 
     def __init__(self, topic_id: int, topic_name: str, section: str, snippet: str, query: str, parent=None):
@@ -131,7 +129,7 @@ class SearchOverlay(QFrame):
     """
     topic_selected = Signal(int, str)
 
-    _SECTIONS = ['All Sections', 'NOTES', 'QUESTIONS', 'RESOURCES', 'IMAGES', 'FLASHCARDS', 'SUB TOPICS']
+    _SECTIONS = ['All Sections', 'NOTES', 'QUESTIONS', 'RESOURCES', 'SUB TOPICS']
 
     def __init__(self, parent=None):
         super().__init__(parent)

@@ -387,7 +387,17 @@ class NoteEditor(QWidget):
                 self.children_count = 0
                 
         # Load the new section
-        t = _T(self.current_topic_id, self.title_label.text()) if self.current_topic_id else None
+        topic_name = "Topic"
+        if self.current_topic_id:
+            from core.database import get_session
+            from core.models import Topic
+            session = get_session()
+            db_topic = session.query(Topic).get(self.current_topic_id)
+            if db_topic:
+                topic_name = db_topic.name
+            session.close()
+            
+        t = _T(self.current_topic_id, topic_name) if self.current_topic_id else None
         self.load_topic(t, section_name)
 
     def update_toolbar_state(self):
@@ -669,7 +679,8 @@ class NoteEditor(QWidget):
             return
             
         self.section_menu.load_topic_sections(topic, section)
-        self.title_label.setText(topic.name if hasattr(topic, 'name') else "Topic")
+        topic_name = topic.name if hasattr(topic, 'name') else "Topic"
+        self.title_label.setText(f"{topic_name} ({section.title()})")
         
         self._clear_tags()
         if hasattr(topic, 'id'):
