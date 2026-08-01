@@ -1,6 +1,6 @@
 from PySide6.QtWidgets import (
     QWidget, QVBoxLayout, QTabWidget, QLabel, QTabBar, QScrollBar, QHBoxLayout,
-    QScrollArea, QStackedWidget
+    QScrollArea, QStackedWidget, QStyle, QStylePainter
 )
 from PySide6.QtCore import Qt, Signal, QPoint, QTimer, QSize
 from PySide6.QtGui import QWheelEvent
@@ -8,6 +8,24 @@ from ui.editor import NoteEditor
 from ui.widgets.breadcrumb import BreadcrumbWidget
 from core.database import get_session
 from core.models import Topic
+
+
+class _NoBaseTabBar(QTabBar):
+    """QTabBar subclass that suppresses the white bottom base line.
+    
+    The Fusion style draws a 1px separator (PE_FrameTabBarBase) below all tabs
+    via QPainter in paintEvent — this cannot be removed with CSS alone.
+    We override paintEvent to draw tabs normally but skip that base line.
+    """
+    def paintEvent(self, event):
+        from PySide6.QtWidgets import QStyleOptionTab
+        painter = QStylePainter(self)
+        for i in range(self.count()):
+            opt = QStyleOptionTab()
+            self.initStyleOption(opt, i)
+            painter.drawControl(QStyle.CE_TabBarTab, opt)
+        # Deliberately NOT drawing CE_TabBarBase / PE_FrameTabBarBase
+        # That is the element responsible for the white horizontal line.
 
 
 class HoverScrollBar(QScrollBar):
@@ -82,16 +100,17 @@ class EditorTabs(QWidget):
         
         # We need a small container to give it some padding, or just set margins on a container
         breadcrumb_container = QWidget()
+        breadcrumb_container.setStyleSheet("background: #121212;")
         bc_layout = QVBoxLayout(breadcrumb_container)
         bc_layout.setContentsMargins(15, 10, 15, 10)
         bc_layout.addWidget(self.breadcrumb)
         layout.addWidget(breadcrumb_container)
 
         self.stacked_editors = QStackedWidget()
-        self.stacked_editors.setStyleSheet("background: #121212;")
+        self.stacked_editors.setStyleSheet("background: transparent;")
 
         # Standalone Tab Bar
-        self._tab_bar = QTabBar()
+        self._tab_bar = _NoBaseTabBar()
         self._tab_bar.setDocumentMode(True)
         self._tab_bar.setTabsClosable(False)  # We manage close buttons manually
         self._tab_bar.setMovable(True)
@@ -99,8 +118,13 @@ class EditorTabs(QWidget):
         self._tab_bar.setExpanding(False)
         
         self._tab_bar.setStyleSheet("""
+            QTabBar {
+                background: #121212;
+                border: none;
+                border-bottom: none;
+            }
             QTabBar::tab {
-                background: #181818;
+                background: #121212;
                 color: #FFFFFF;
                 padding: 8px 8px 8px 12px;
                 border: none;
@@ -118,17 +142,20 @@ class EditorTabs(QWidget):
                 background: #2D2036;
                 color: #B48EAD;
             }
+            QTabBar::scroller {
+                width: 0;
+            }
         """)
 
         # Scroll Area to provide perfect pixel scrolling for the tab bar
         self._scroll_area = QScrollArea()
-        self._scroll_area.setFixedHeight(35)
+        self._scroll_area.setFixedHeight(40)
         self._scroll_area.setWidgetResizable(True)
         self._scroll_area.setFrameShape(QScrollArea.NoFrame)
         self._scroll_area.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._scroll_area.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         self._scroll_area.setWidget(self._tab_bar)
-        self._scroll_area.setStyleSheet("background: #121212;")
+        self._scroll_area.setStyleSheet("background: #121212; border: none;")
 
         # ── Dedicated hover scroll strip ───────────────────────────────────
         self._scroll_bar = HoverScrollBar()
@@ -146,7 +173,7 @@ class EditorTabs(QWidget):
 
         self._scroll_strip = QWidget()
         self._scroll_strip.setFixedHeight(4)
-        self._scroll_strip.setStyleSheet("background: #121212;")
+        self._scroll_strip.setStyleSheet("background: transparent;")
         _ss_layout = QHBoxLayout(self._scroll_strip)
         _ss_layout.setContentsMargins(0, 0, 0, 0)
         _ss_layout.setSpacing(0)
@@ -161,7 +188,7 @@ class EditorTabs(QWidget):
         
         # ── Header row with tabs and action buttons ──
         tab_header = QWidget()
-        tab_header.setFixedHeight(39)
+        tab_header.setFixedHeight(40)
         tab_header.setStyleSheet("background: #121212;")
         th_layout = QHBoxLayout(tab_header)
         th_layout.setContentsMargins(0, 0, 0, 0)

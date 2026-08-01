@@ -7,10 +7,14 @@ QMainWindow {
     outline: none;
 }
 QWidget {
-    background-color: #121212;
     color: #FFFFFF;
     font-family: "Inter", "Segoe UI", sans-serif;
     font-size: 10pt;
+}
+QTabBar {
+    background: #121212;
+    border: none;
+    border-bottom: none;
 }
 QSplitter::handle {
     background-color: #2D2D2D;

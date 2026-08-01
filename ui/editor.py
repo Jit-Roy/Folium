@@ -166,11 +166,16 @@ class NoteEditor(QWidget):
         self.editor = RichTextEditor()
         self.editor.setPlaceholderText("Start writing here...")
         self.editor.setEnabled(False)
-        self.editor.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        # Use FixedPixelWidth so we can debounce the native layout recalculation manually!
+        self.editor.setLineWrapMode(QTextEdit.FixedPixelWidth)
         self.editor.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
         
+        # We need an initial width before the first resize event, just in case
+        self.editor.setLineWrapColumnOrWidth(800)
+        
+        self.editor.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        
         from PySide6.QtGui import QTextOption
-        self.editor.setLineWrapMode(QTextEdit.WidgetWidth)
         self.editor.setWordWrapMode(QTextOption.WrapAtWordBoundaryOrAnywhere)
         self.editor.setStyleSheet("""
             QTextEdit {

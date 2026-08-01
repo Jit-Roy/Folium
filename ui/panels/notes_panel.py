@@ -78,16 +78,36 @@ class NotesPanel(QWidget):
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(0)
 
-        # ── Section header — action icons only, no title text ─────────────
+        # ── Standard Sidebar Header ───────────────────────────────────────
+        hdr_lay = QVBoxLayout()
+        hdr_lay.setAlignment(Qt.AlignmentFlag.AlignTop)
+        hdr_lay.setContentsMargins(20, 24, 20, 12)
+        hdr_lay.setSpacing(8)
+        
+        lbl = QLabel("Explorer")
+        lbl.setStyleSheet("color: #ffffff; font-size: 13pt; font-weight: bold; letter-spacing: 0.5px; background: transparent;")
+        hdr_lay.addWidget(lbl)
+        
+        desc = QLabel("Search Notes")
+        desc.setStyleSheet("color: #8e8e93; font-size: 10pt; background: transparent;")
+        hdr_lay.addWidget(desc)
+        
+        div = QFrame()
+        div.setFrameShape(QFrame.Shape.HLine)
+        div.setFixedHeight(1)
+        div.setStyleSheet("background: rgba(255,255,255,0.05); border: none; margin-top: 12px; margin-bottom: 12px;")
+        hdr_lay.addWidget(div)
+        
+        layout.addLayout(hdr_lay)
+
+        # ── Search Bar and Action Icons ─────────────
         self.header = QWidget()
         self.header.setFixedHeight(40)
         self.header.setStyleSheet("""
-            background: qlineargradient(x1:0, y1:0, x2:0, y2:1,
-                stop:0 #1f1f1f, stop:1 #181818);
-            border-bottom: 1px solid #2a2a2a;
+            background: #181818;
         """)
         header_layout = QHBoxLayout(self.header)
-        header_layout.setContentsMargins(10, 0, 8, 0)
+        header_layout.setContentsMargins(20, 0, 20, 0)
         header_layout.setSpacing(10)
 
         # Search Bar
@@ -145,12 +165,6 @@ class NotesPanel(QWidget):
 
         header_layout.addLayout(button_layout)
         layout.addWidget(self.header)
-
-        # ── Separator ──────────────────────────────────────────────────────
-        sep = QFrame()
-        sep.setFrameShape(QFrame.HLine)
-        sep.setStyleSheet("background: #2a2a2a; border:none; max-height:1px;")
-        layout.addWidget(sep)
 
         # ── Tree view ──────────────────────────────────────────────────────
         self.topic_model = QStandardItemModel()

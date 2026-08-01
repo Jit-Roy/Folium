@@ -25,12 +25,56 @@ from PySide6.QtWidgets import (
     QApplication, QMainWindow, QSplitter, QVBoxLayout, QHBoxLayout, QWidget,
     QStackedWidget
 )
-from PySide6.QtCore import Qt, QSettings, QTimer, QByteArray
-from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, QSettings, QTimer, QByteArray, QObject, QEvent
+from PySide6.QtGui import QIcon, QColor
+
+import logging
+import time
+
+logging.basicConfig(
+    filename='resize_debug.log', 
+    level=logging.DEBUG, 
+    format='%(asctime)s.%(msecs)03d | %(levelname)s | %(message)s', 
+    datefmt='%H:%M:%S'
+)
+
+class WhiteFlashDetector(QObject):
+    def __init__(self):
+        super().__init__()
+        self.last_resize_time = 0
+        self.resize_count = 0
+        
+    def eventFilter(self, obj, event):
+        if event.type() == QEvent.Resize:
+            if isinstance(obj, QWidget):
+                now = time.time()
+                elapsed = (now - self.last_resize_time) * 1000
+                self.last_resize_time = now
+                self.resize_count += 1
+                
+                # Check for lag
+                if elapsed > 30 and self.resize_count > 5:
+                    extra = ""
+                    if hasattr(obj, 'text'):
+                        extra = f" | Text: '{obj.text()[:50]}'"
+                    elif hasattr(obj, 'objectName') and obj.objectName():
+                        extra = f" | ObjName: '{obj.objectName()}'"
+                    logging.warning(f"LAG DETECTED! {obj.__class__.__name__} resize took {elapsed:.1f}ms!{extra} (This causes DWM ghosting)")
+                
+                # Check for white backgrounds
+                try:
+                    bg_role = obj.backgroundRole()
+                    color = obj.palette().color(bg_role)
+                    # Exclude typical generic widgets that are transparent in practice but return their palette color
+                    if color.name().lower() == '#ffffff' or color.name().lower() == '#f0f0f0':
+                        if 'QTextEdit' in obj.__class__.__name__ or 'MainWindow' in obj.__class__.__name__ or 'QSplitter' in obj.__class__.__name__ or 'EditorTabs' in obj.__class__.__name__ or 'NoteEditor' in obj.__class__.__name__:
+                            logging.error(f"WHITE/LIGHT BACKGROUND DETECTED ON: {obj.__class__.__name__} (Role: {bg_role.name.decode('utf-8') if hasattr(bg_role, 'name') else bg_role})")
+                except Exception as e:
+                    pass
+        return False
 
 from ui.theme import MAIN_QSS
 from ui.activity_bar import ActivityBar
-from ui.title_bar import CustomTitleBar
 from ui.side_panel import SidePanel
 from ui.panels.context_sidebar import ContextSidebar
 from ui.panels.habits_sidebar import HabitsSidebar
@@ -52,28 +96,131 @@ from core.models import Topic
 class MainWindow(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowFlags(self.windowFlags() | Qt.FramelessWindowHint)
         self.setWindowTitle(" ")
-        self.setWindowIcon(QIcon("assets/icons/app-icon.ico"))
+        
+        # Attach our global white flash detector
+        self.flash_detector = WhiteFlashDetector()
+        QApplication.instance().installEventFilter(self.flash_detector)
+        logging.info("--- APP STARTED. WHITE FLASH DETECTOR ACTIVE ---")
+        
+        # Force Qt BackingStore to clear to our dark palette instead of white during resize lag
+        self.setAutoFillBackground(True)
+        self.setAttribute(Qt.WA_StyledBackground, True)
+        
+        import sys
+        from PySide6.QtGui import QIcon
+        from pathlib import Path
+        basedir = Path(__file__).resolve().parent
+        abs_icon = str(basedir / "assets" / "icons" / "app-icon.ico")
+        self.setWindowIcon(QIcon(abs_icon))
+        
         self.resize(1600, 900)
-        self._is_pseudo_maximized = False
         self.current_topic = None
         self._init_ui()
-        
-        # Install global event filter to capture mouse movements over child widgets for edge resizing
-        from PySide6.QtWidgets import QApplication
-        QApplication.instance().installEventFilter(self)
+
+    def showEvent(self, event):
+        super().showEvent(event)
+        self._apply_dwm_titlebar()
+
+    def nativeEvent(self, eventType, message):
+        # Intercept WM_ERASEBKGND (0x0014) to prevent Windows from painting
+        # the background white before Qt's paint event fires.
+        # This is the root cause of the white flash during resize.
+        if eventType in (b'windows_generic_MSG', b'windows_dispatcher_MSG'):
+            try:
+                import ctypes
+                import ctypes.wintypes
+
+                # MSG struct on 64-bit Windows:
+                # HWND   hwnd     (8 bytes)
+                # UINT   message  (4 bytes) <- we need this
+                # WPARAM wParam   (8 bytes) <- HDC when message==WM_ERASEBKGND
+                class MSG(ctypes.Structure):
+                    _fields_ = [
+                        ('hwnd',    ctypes.c_void_p),
+                        ('message', ctypes.c_uint),
+                        ('wParam',  ctypes.c_size_t),
+                        ('lParam',  ctypes.c_ssize_t),
+                        ('time',    ctypes.c_uint),
+                        ('pt_x',   ctypes.c_long),
+                        ('pt_y',   ctypes.c_long),
+                    ]
+
+                msg = ctypes.cast(int(message), ctypes.POINTER(MSG)).contents
+                if msg.message == 0x0014:  # WM_ERASEBKGND
+                    hdc = ctypes.c_void_p(msg.wParam)
+                    hwnd = ctypes.c_void_p(int(self.winId()))
+                    # Fill client area with our dark background color
+                    rc = ctypes.create_string_buffer(16)  # RECT struct (4 x c_long)
+                    ctypes.windll.user32.GetClientRect(hwnd, rc)
+                    brush = ctypes.windll.gdi32.CreateSolidBrush(0x00181818)  # #181818
+                    ctypes.windll.user32.FillRect(hdc, rc, brush)
+                    ctypes.windll.gdi32.DeleteObject(brush)
+                    return True, 1  # Tell Windows we handled it
+            except Exception:
+                pass
+        return super().nativeEvent(eventType, message)
+
+    def _apply_dwm_titlebar(self):
+        import sys
+        if sys.platform != "win32":
+            return
+            
+        try:
+            import ctypes
+            from ctypes import wintypes
+            from ctypes import c_int
+            
+            hwnd = int(self.winId())
+            
+            # --- 1. Enable immersive dark mode so DWM ghost is dark not white ---
+            color = 0x00181818
+            DWMWA_CAPTION_COLOR = 35
+            DWMWA_TEXT_COLOR = 36
+            DWMWA_USE_IMMERSIVE_DARK_MODE = 20
+            
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_USE_IMMERSIVE_DARK_MODE, ctypes.byref(c_int(1)), ctypes.sizeof(c_int))
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_CAPTION_COLOR, ctypes.byref(c_int(color)), ctypes.sizeof(c_int))
+            ctypes.windll.dwmapi.DwmSetWindowAttribute(
+                hwnd, DWMWA_TEXT_COLOR, ctypes.byref(c_int(0x00FFFFFF)), ctypes.sizeof(c_int))
+                
+            # --- 2. Replace the Win32 Class Background Brush ---
+            # By default, Windows clears newly-exposed regions during resize using a white
+            # COLOR_WINDOW brush. We replace it with #121212 so that any area exposed
+            # between frames appears dark instead of white.
+            ctypes.windll.gdi32.CreateSolidBrush.restype = ctypes.c_void_p
+            dark_brush = ctypes.windll.gdi32.CreateSolidBrush(0x00181818)  # 0x00bbggrr
+            GCLP_HBRBACKGROUND = -10
+            if ctypes.sizeof(ctypes.c_void_p) == 8:
+                SetClassLongPtr = ctypes.windll.user32.SetClassLongPtrW
+                SetClassLongPtr.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_void_p]
+                SetClassLongPtr.restype = ctypes.c_void_p
+                SetClassLongPtr(hwnd, GCLP_HBRBACKGROUND, dark_brush)
+            else:
+                SetClassLong = ctypes.windll.user32.SetClassLongW
+                SetClassLong.argtypes = [wintypes.HWND, ctypes.c_int, ctypes.c_long]
+                SetClassLong.restype = ctypes.c_long
+                SetClassLong(hwnd, GCLP_HBRBACKGROUND, dark_brush)
+
+            # 3. Hide the title bar icon natively
+            try:
+                from ui.win32_utils import hide_titlebar_icon
+                hide_titlebar_icon(hwnd)
+            except Exception as e:
+                print(f"Failed to hide titlebar icon: {e}")
+
+        except Exception as e:
+            print(f"DWM titlebar setup failed: {e}")
 
     def _init_ui(self):
-        # ── Outermost vertical layout for title bar + main content ─
+        # ── Outermost vertical layout for main content ─
         main_container = QWidget()
         v_layout = QVBoxLayout(main_container)
         v_layout.setContentsMargins(0, 0, 0, 0)
         v_layout.setSpacing(0)
         self.setCentralWidget(main_container)
-        
-        self.title_bar = CustomTitleBar(self)
-        v_layout.addWidget(self.title_bar)
         
         # ── Inner horizontal layout: ActivityBar | SidePanel | RightArea ─
         root = QWidget()
@@ -231,7 +378,6 @@ class MainWindow(QMainWindow):
         settings = QSettings()
         settings.setValue("geometry", self.saveGeometry())
         settings.setValue("windowState", self.saveState())
-        settings.setValue("is_pseudo_maximized", getattr(self, "_is_pseudo_maximized", False))
         if hasattr(self, "_normal_geometry"):
             settings.setValue("normal_geometry", self._normal_geometry)
             
@@ -298,20 +444,6 @@ class MainWindow(QMainWindow):
         if self.knowledge_panel.is_maximized:
             self.editor_tabs.hide()
             
-        # Restore maximized state explicitly
-        is_max = settings.value("is_pseudo_maximized", False, type=bool)
-        if is_max:
-            self._is_pseudo_maximized = True
-            self.title_bar.update_max_icon(True)
-            
-            from PySide6.QtWidgets import QApplication
-            screen = QApplication.screenAt(self.geometry().center())
-            if screen:
-                self.setGeometry(screen.availableGeometry())
-        else:
-            self._is_pseudo_maximized = False
-            self.title_bar.update_max_icon(False)
-
         # Show the window now that the UI state has been completely restored
         # This prevents the user from seeing the initial unstyled or partial loading state
         self.show()
@@ -469,73 +601,6 @@ class MainWindow(QMainWindow):
             self.knowledge_panel.set_current_topic(None)
             self.knowledge_panel.set_active_editor(None)
 
-    RESIZE_MARGIN = 6
-
-    def eventFilter(self, obj, event):
-        from PySide6.QtCore import QEvent, Qt
-        if event.type() in (QEvent.MouseMove, QEvent.MouseButtonPress):
-            if not self.isVisible() or self.isMaximized() or getattr(self, '_is_pseudo_maximized', False):
-                return super().eventFilter(obj, event)
-
-            try:
-                global_pos = event.globalPosition().toPoint()
-            except AttributeError:
-                return super().eventFilter(obj, event)
-                
-            pos = self.mapFromGlobal(global_pos)
-            w, h = self.width(), self.height()
-            
-            m = 6
-            left = pos.x() < m and pos.x() >= 0
-            right = pos.x() > w - m and pos.x() <= w
-            top = pos.y() < m and pos.y() >= 0
-            bottom = pos.y() > h - m and pos.y() <= h
-            
-            if top and pos.x() > w - 150:
-                top = False
-                right = False
-
-            is_edge = left or right or top or bottom
-
-            if event.type() == QEvent.MouseMove:
-                if is_edge:
-                    cursor = Qt.ArrowCursor
-                    if (top and left) or (bottom and right): cursor = Qt.SizeFDiagCursor
-                    elif (top and right) or (bottom and left): cursor = Qt.SizeBDiagCursor
-                    elif left or right: cursor = Qt.SizeHorCursor
-                    elif top or bottom: cursor = Qt.SizeVerCursor
-                    
-                    if not getattr(self, '_cursor_overridden', False):
-                        from PySide6.QtWidgets import QApplication
-                        QApplication.setOverrideCursor(cursor)
-                        self._cursor_overridden = True
-                    else:
-                        from PySide6.QtWidgets import QApplication
-                        QApplication.changeOverrideCursor(cursor)
-                    return True
-                else:
-                    if getattr(self, '_cursor_overridden', False):
-                        from PySide6.QtWidgets import QApplication
-                        QApplication.restoreOverrideCursor()
-                        self._cursor_overridden = False
-
-            elif event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
-                if getattr(self, '_cursor_overridden', False):
-                    from PySide6.QtWidgets import QApplication
-                    QApplication.restoreOverrideCursor()
-                    self._cursor_overridden = False
-                    
-                if is_edge and self.windowHandle():
-                    edges = Qt.Edge(0)
-                    if top: edges |= Qt.Edge.TopEdge
-                    if bottom: edges |= Qt.Edge.BottomEdge
-                    if left: edges |= Qt.Edge.LeftEdge
-                    if right: edges |= Qt.Edge.RightEdge
-                    self.windowHandle().startSystemResize(edges)
-                    return True
-
-        return super().eventFilter(obj, event)
-
     def _on_reference_viewer_maximize_requested(self, is_maximized: bool):
         """Maximize the reference viewer by hiding the editor canvas."""
         if is_maximized:
@@ -568,12 +633,54 @@ class MainWindow(QMainWindow):
 
 
 if __name__ == "__main__":
+    import ctypes
+    import sys
+    myappid = 'Zstudy.app.1.0'
+    try:
+        if not getattr(sys, 'frozen', False):
+            ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
+    except Exception:
+        pass
+
     app = QApplication(sys.argv)
     app.setOrganizationName("Zstudy")
     app.setApplicationName("StudyNotebook")
     init_db()
+    
+    # Set dark palette to prevent white flashes before QSS is applied
+    app.setStyle("Fusion")
+    from PySide6.QtGui import QPalette, QColor
+    from PySide6.QtCore import Qt
+    palette = QPalette()
+    palette.setColor(QPalette.Window, QColor("#121212"))
+    palette.setColor(QPalette.WindowText, Qt.white)
+    palette.setColor(QPalette.Base, QColor("#121212"))
+    palette.setColor(QPalette.AlternateBase, QColor("#121212"))
+    palette.setColor(QPalette.ToolTipBase, Qt.white)
+    palette.setColor(QPalette.ToolTipText, Qt.white)
+    palette.setColor(QPalette.Text, Qt.white)
+    palette.setColor(QPalette.Button, QColor("#121212"))
+    palette.setColor(QPalette.ButtonText, Qt.white)
+    palette.setColor(QPalette.BrightText, Qt.red)
+    palette.setColor(QPalette.Link, QColor(42, 130, 218))
+    palette.setColor(QPalette.Highlight, QColor(42, 130, 218))
+    palette.setColor(QPalette.HighlightedText, Qt.black)
+    app.setPalette(palette)
+    
     app.setStyleSheet(MAIN_QSS)
     window = MainWindow()
+    
+    from pathlib import Path
+    basedir = Path(__file__).resolve().parent
+    abs_icon = str(basedir / "assets" / "icons" / "app-icon.ico")
+    
+    if not getattr(sys, 'frozen', False):
+        try:
+            from ui.win32_utils import setup_windows_identity
+            setup_windows_identity(window, myappid, abs_icon)
+        except Exception as e:
+            print(f"Failed to setup windows identity: {e}")
+
     # Note: window.show() is called at the end of window.restore_state()
     # to prevent visual UI flashing on startup
     sys.exit(app.exec())

@@ -239,14 +239,14 @@ class JournalSidebar(QWidget):
         desc.setStyleSheet("color: #8e8e93; font-size: 10pt;")
         hdr_lay.addWidget(desc)
 
-        lay.addWidget(hdr)
-        
         # Thin divider
         div = QFrame()
         div.setFrameShape(QFrame.Shape.HLine)
         div.setFixedHeight(1)
-        div.setStyleSheet("background: rgba(255,255,255,0.05); border: none; margin-left: 20px; margin-right: 20px; margin-bottom: 12px;")
-        lay.addWidget(div)
+        div.setStyleSheet("background: rgba(255,255,255,0.05); border: none; margin-top: 12px; margin-bottom: 12px;")
+        hdr_lay.addWidget(div)
+
+        lay.addWidget(hdr)
 
         # Scrollable list
         scroll = QScrollArea()

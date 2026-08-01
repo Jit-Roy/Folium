@@ -221,9 +221,23 @@ class RichTextEditor(QTextEdit):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setMouseTracking(True)
+        self.setAutoFillBackground(True)
+        self.viewport().setAutoFillBackground(True)
+        
+        # Ensure the viewport is definitively dark by applying the palette explicitly
+        p = self.viewport().palette()
+        p.setColor(self.viewport().backgroundRole(), QColor("#121212"))
+        self.viewport().setPalette(p)
+        
+        self._resize_timer = QTimer(self)
+        self._resize_timer.setSingleShot(True)
+        self._resize_timer.setInterval(500)
+        self._resize_timer.timeout.connect(self._apply_responsive_images)
+        
         self.active_overlay = None
         self._search_matches = []  # list of QTextCursor
         self._current_match_idx = -1
+        self._image_size_cache = {}
         
     def clear_highlights(self):
         self.setExtraSelections([])
@@ -341,18 +355,22 @@ class RichTextEditor(QTextEdit):
             if not getattr(self.active_overlay, 'dragging', False):
                 self.active_overlay.update_geometry()
                 
-        # Make images dynamically responsive to viewport width
+        # Debounce the expensive image recalculation so it doesn't freeze the app
+        self._resize_timer.start()
+        
+    def _apply_responsive_images(self):
+        # Update the wrap width to match the new viewport width!
+        # This triggers the native Qt layout recalculation ONCE, after the user stops dragging!
+        self.setLineWrapColumnOrWidth(self.viewport().width())
+        
+        document = self.document()
         max_w = self.viewport().width() - 20
         if max_w < 50:
             return
             
-        document = self.document()
         block = document.begin()
-        
-        from PySide6.QtGui import QImage, QTextCursor, QTextFormat
-        
-        # We need to wrap cursor modifications so they don't break the undo history into a million pieces
         cursor_actions = []
+        from PySide6.QtGui import QImage, QTextCursor, QTextFormat
         
         while block.isValid():
             it = block.begin()
@@ -366,11 +384,18 @@ class RichTextEditor(QTextEdit):
                         
                         if url.startswith("file:///"):
                             path = url.replace("file:///", "")
-                            img = QImage(path)
-                            if not img.isNull():
+                            if path not in self._image_size_cache:
+                                img = QImage(path)
+                                if not img.isNull():
+                                    self._image_size_cache[path] = (img.width(), img.height())
+                                else:
+                                    self._image_size_cache[path] = (img_fmt.width(), img_fmt.height())
+                                    
+                            orig_w, orig_h = self._image_size_cache[path]
+                            if orig_w > 0:
                                 # Check if user manually resized it before
                                 custom_w = img_fmt.property(QTextFormat.UserProperty + 1)
-                                intended_w = int(custom_w) if custom_w else img.width()
+                                intended_w = int(custom_w) if custom_w else orig_w
                                 
                                 # Clamp to viewport max width
                                 target_w = intended_w
@@ -379,7 +404,7 @@ class RichTextEditor(QTextEdit):
                                     
                                 # Only update if dimensions differ noticeably to prevent endless layout loops
                                 if abs(img_fmt.width() - target_w) > 2:
-                                    target_h = int(img.height() * (target_w / img.width()))
+                                    target_h = int(orig_h * (target_w / orig_w))
                                     img_fmt.setWidth(target_w)
                                     img_fmt.setHeight(target_h)
                                     
